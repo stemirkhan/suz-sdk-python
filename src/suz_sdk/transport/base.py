@@ -23,6 +23,11 @@ class Request:
                    (User-Agent, Accept) but will not override caller headers.
         json_body: Python object to JSON-serialize as the request body.
                    Set to None for requests without a body (GET, DELETE).
+        raw_body:  Pre-serialized request body bytes.  When set, takes
+                   precedence over json_body and is sent verbatim.  Use
+                   this when you need to sign the exact bytes sent (e.g.
+                   for register_connection).  Caller must set Content-Type
+                   in headers when using raw_body.
     """
 
     method: str
@@ -30,6 +35,7 @@ class Request:
     params: dict[str, str] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
     json_body: Any = None
+    raw_body: bytes | None = None
 
 
 @dataclass

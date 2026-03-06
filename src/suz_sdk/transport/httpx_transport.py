@@ -74,6 +74,10 @@ class HttpxTransport:
         Logs method, path, status code, and elapsed time.
         Never logs header values (tokens, signatures).
 
+        When ``req.raw_body`` is set, sends it verbatim as the request body
+        (the caller is responsible for setting Content-Type).  Otherwise
+        JSON-encodes ``req.json_body``.
+
         Args:
             req: The request descriptor.
 
@@ -100,13 +104,22 @@ class HttpxTransport:
         start = time.monotonic()
 
         try:
-            raw = self._client.request(
-                method=req.method,
-                url=req.path,
-                params=req.params or None,
-                headers=headers,
-                json=req.json_body,
-            )
+            if req.raw_body is not None:
+                raw = self._client.request(
+                    method=req.method,
+                    url=req.path,
+                    params=req.params or None,
+                    headers=headers,
+                    content=req.raw_body,
+                )
+            else:
+                raw = self._client.request(
+                    method=req.method,
+                    url=req.path,
+                    params=req.params or None,
+                    headers=headers,
+                    json=req.json_body,
+                )
         except httpx.TimeoutException as exc:
             raise SuzTimeoutError(
                 f"Request timed out: {req.method} {req.path}"

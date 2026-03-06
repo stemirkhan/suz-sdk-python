@@ -16,6 +16,11 @@ Environment notes (§9.2.1 of the API PDF):
     TODO(api-urls): Clarify whether sandbox/production have fixed base URLs
     for the main API (ping, orders) or if they are always OMS-instance-specific.
     Update Environment defaults once confirmed.
+
+True API notes (§9.3.2):
+    True API base URLs for token acquisition:
+        Sandbox:    https://markirovka.sandbox.crptech.ru/api/v3/true-api
+        Production: https://markirovka.crpt.ru/api/v3/true-api
 """
 
 from enum import Enum
@@ -49,23 +54,32 @@ _ENVIRONMENT_BASE_URLS: dict[Environment, str] = {
     Environment.PRODUCTION: "https://suzgrid.crpt.ru:16443",
 }
 
+# True API (GIS MT) base URLs for token acquisition (§9.3.2).
+_TRUE_API_BASE_URLS: dict[Environment, str] = {
+    Environment.SANDBOX: "https://markirovka.sandbox.crptech.ru/api/v3/true-api",
+    Environment.PRODUCTION: "https://markirovka.crpt.ru/api/v3/true-api",
+}
+
 
 class SuzConfig(BaseModel):
     """Configuration for SuzClient.
 
     Attributes:
         oms_id:           UUID of the СУЗ instance.  Required.  Passed as
-                          `omsId` query parameter on every API request.
+                          ``omsId`` query parameter on every API request.
         environment:      Predefined environment (SANDBOX or PRODUCTION).
                           Used to set a default base_url if none is given.
-        base_url:         Explicit base URL override.  Takes priority over
-                          environment default.  Must not have a trailing slash.
+        base_url:         Explicit base URL override for the main SUZ API.
+                          Takes priority over environment default.
+                          Must not have a trailing slash.
+        true_api_url:     Explicit base URL override for the True API (GIS MT)
+                          used to obtain clientTokens.  If not set, derived
+                          from ``environment``.
         signer:           Signing implementation.  Required for endpoints that
                           mandate X-Signature (registration, some reports).
-                          Optional for read-only calls like ping.
-        client_token:     A pre-obtained clientToken to inject into requests.
-                          In later iterations this will be managed automatically
-                          by TokenManager.
+                          Also used for True API authentication.
+        client_token:     A pre-obtained clientToken to inject into requests
+                          directly, bypassing TokenManager.
         oms_connection:   UUID of the registered integration installation
                           (omsConnection).  Required for token operations.
         registration_key: Registration key issued by CRPT.
@@ -84,17 +98,30 @@ class SuzConfig(BaseModel):
     base_url: str | None = Field(
         default=None,
         description=(
-            "Explicit base URL.  If not set, derived from `environment`. "
-            "Must not have a trailing slash."
+            "Explicit base URL for the main SUZ API.  If not set, derived from "
+            "`environment`.  Must not have a trailing slash."
+        ),
+    )
+    true_api_url: str | None = Field(
+        default=None,
+        description=(
+            "Explicit base URL for the True API (GIS MT).  If not set, derived "
+            "from `environment`."
         ),
     )
     signer: BaseSigner | None = Field(
         default=None,
-        description="Signer for X-Signature header.  Required for signed endpoints.",
+        description=(
+            "Signer for X-Signature header and True API challenge signing.  "
+            "Required for signed endpoints and auto token management."
+        ),
     )
     client_token: str | None = Field(
         default=None,
-        description="Pre-obtained clientToken.  Managed by TokenManager in later iterations.",
+        description=(
+            "Pre-obtained clientToken.  When set, used directly instead of "
+            "TokenManager.  Useful when token is managed externally."
+        ),
     )
     oms_connection: str | None = Field(
         default=None,
@@ -113,14 +140,16 @@ class SuzConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _strip_base_url_slash(cls, data: Any) -> Any:
-        """Strip trailing slashes from base_url before validation."""
-        if isinstance(data, dict) and isinstance(data.get("base_url"), str):
-            data["base_url"] = data["base_url"].rstrip("/")
+    def _strip_trailing_slashes(cls, data: Any) -> Any:
+        """Strip trailing slashes from URL fields before validation."""
+        if isinstance(data, dict):
+            for field_name in ("base_url", "true_api_url"):
+                if isinstance(data.get(field_name), str):
+                    data[field_name] = data[field_name].rstrip("/")
         return data
 
     def resolved_base_url(self) -> str:
-        """Return the effective base URL (explicit or derived from environment).
+        """Return the effective SUZ API base URL (explicit or from environment).
 
         Returns:
             Base URL string without trailing slash.
@@ -128,3 +157,13 @@ class SuzConfig(BaseModel):
         if self.base_url:
             return self.base_url
         return _ENVIRONMENT_BASE_URLS[self.environment]
+
+    def resolved_true_api_url(self) -> str:
+        """Return the effective True API base URL (explicit or from environment).
+
+        Returns:
+            True API base URL string without trailing slash.
+        """
+        if self.true_api_url:
+            return self.true_api_url
+        return _TRUE_API_BASE_URLS[self.environment]
