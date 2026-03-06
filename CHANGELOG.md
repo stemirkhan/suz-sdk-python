@@ -11,6 +11,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.3.0] — 2026-03-06
+
+### Added
+
+- `client.orders.create()` — creates a KM emission order (`POST /api/v3/order?omsId=…`); signs request body with `X-Signature` when a signer is configured; returns `CreateOrderResponse` with `order_id` and `expected_complete_timestamp`
+- `client.orders.get_status()` — polls buffer status for an order (`GET /api/v3/order/status`); returns a list of `BufferInfo` objects with `buffer_status` (ACTIVE / PENDING / REJECTED), `available_codes`, `rejection_reason`, etc.
+- `client.orders.get_codes()` — fetches a block of KM codes from an active order (`GET /api/v3/codes`); returns `GetCodesResponse` with `codes` list and `block_id`
+- `client.orders.close()` — closes an order or individual sub-order by GTIN (`POST /api/v3/order/close`); signs request body when signer is configured; returns `CloseOrderResponse`
+- `OrdersApi` class and models (`OrderProduct`, `CreateOrderResponse`, `BufferInfo`, `GetCodesResponse`, `CloseOrderResponse`) exported from the top-level `suz_sdk` package
+- `SuzClient.orders` attribute — wired automatically with the main transport, auth headers, and signer
+- 36 new unit tests covering all four orders methods, request structure, signing, error propagation, and client wiring
+
+---
+
 ## [0.2.0] — 2026-03-06
 
 ### Added

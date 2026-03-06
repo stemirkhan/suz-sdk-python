@@ -27,6 +27,14 @@ Quick start:
 
 from suz_sdk.api.health import PingResponse
 from suz_sdk.api.integration import IntegrationApi, RegisterConnectionResponse
+from suz_sdk.api.orders import (
+    BufferInfo,
+    CloseOrderResponse,
+    CreateOrderResponse,
+    GetCodesResponse,
+    OrderProduct,
+    OrdersApi,
+)
 from suz_sdk.auth.auth_api import AuthApi
 from suz_sdk.auth.token_manager import TokenManager
 from suz_sdk.auth.true_api import TrueApiAuth
@@ -68,6 +76,14 @@ __all__ = [
     # Response models
     "PingResponse",
     "RegisterConnectionResponse",
+    "CreateOrderResponse",
+    "BufferInfo",
+    "GetCodesResponse",
+    "CloseOrderResponse",
+    # Request models
+    "OrderProduct",
+    # API namespaces (orders)
+    "OrdersApi",
     # Auth
     "TrueApiAuth",
     "TokenManager",
@@ -76,4 +92,4 @@ __all__ = [
     "IntegrationApi",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
