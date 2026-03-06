@@ -5,6 +5,8 @@ Python SDK for the **СУЗ API 3.0** (СУЗ-Облако 4.0, API version 3.0.
 Wraps the CRPT marking-code system HTTP API with a clean, typed Python interface.
 This is **Iteration 1** — the core foundation.  See [Scope](#scope) for what is and is not implemented yet.
 
+[Русская версия](README.ru.md)
+
 ---
 
 ## Installation
