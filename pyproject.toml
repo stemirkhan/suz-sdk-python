@@ -9,7 +9,23 @@ description = "Python SDK for СУЗ API 3.0 (СУЗ-Облако 4.0)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
-keywords = ["suz", "crpt", "marking", "api", "sdk", "честныйзнак"]
+keywords = [
+    "suz",
+    "crpt",
+    "marking",
+    "api",
+    "sdk",
+    "честныйзнак",
+    "маркировка",
+    "коды-маркировки",
+    "оператор-crpt",
+    "epc",
+    "gtin",
+    "datamatrix",
+    "integration",
+    "rest-client",
+    "httpx",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
