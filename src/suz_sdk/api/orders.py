@@ -1,10 +1,15 @@
 """OrdersApi — KM emission orders (§4.4).
 
 Endpoints implemented:
-    create()      POST /api/v3/order              §4.4.1
-    get_status()  GET  /api/v3/order/status       §4.4.2
-    get_codes()   GET  /api/v3/codes              §4.4.4
-    close()       POST /api/v3/order/close        §4.4.8
+    create()          POST /api/v3/order              §4.4.1
+    get_status()      GET  /api/v3/order/status       §4.4.2
+    list_orders()     GET  /api/v3/order/list         §4.4.3
+    get_codes()       GET  /api/v3/codes              §4.4.4
+    get_blocks()      GET  /api/v3/order/codes/blocks §4.4.5
+    get_codes_retry() GET  /api/v3/order/codes/retry  §4.4.6
+    get_product_info()GET  /api/v3/order/product      §4.4.7
+    close()           POST /api/v3/order/close        §4.4.8
+    search_orders()   POST /api/v3/orders/search      §4.4.29
 
 Typical flow:
     1. order = client.orders.create(product_group="...", products=[...])
@@ -77,6 +82,69 @@ class GetCodesResponse:
     oms_id: str
     codes: list[str]
     block_id: str
+
+
+@dataclass
+class Block:
+    """A single delivery block (§4.4.5.2)."""
+
+    block_id: str
+    block_date_time: int   # Unix ms
+    quantity: int
+
+
+@dataclass
+class GetBlocksResponse:
+    """Response from GET /api/v3/order/codes/blocks (§4.4.5.2)."""
+
+    oms_id: str
+    order_id: str
+    gtin: str
+    blocks: list[Block] = field(default_factory=list)
+
+
+@dataclass
+class OrderSummaryInfo:
+    """Summary of an order as returned by list_orders / search_orders (§4.4.3, §4.4.29)."""
+
+    order_id: str
+    order_status: str
+    created_timestamp: int
+    product_group: str | None = None
+    buffers: list[BufferInfo] = field(default_factory=list)
+    decline_reason: str | None = None
+    production_order_id: str | None = None
+    service_provider_id: str | None = None
+    payment_type: int | None = None
+
+
+@dataclass
+class ListOrdersResponse:
+    """Response from GET /api/v3/order/list (§4.4.3)."""
+
+    oms_id: str
+    order_infos: list[OrderSummaryInfo] = field(default_factory=list)
+
+
+@dataclass
+class OrderFilter:
+    """Filter parameters for search_orders (§4.4.29)."""
+
+    start_created_timestamp: int | None = None
+    end_created_timestamp: int | None = None
+    order_statuses: list[str] | None = None
+    product_groups: list[str] | None = None
+    production_order_ids: list[str] | None = None
+    service_provider_ids: list[str] | None = None
+    order_ids: list[str] | None = None
+
+
+@dataclass
+class SearchOrdersResponse:
+    """Response from POST /api/v3/orders/search (§4.4.29)."""
+
+    total_count: int
+    results: list[OrderSummaryInfo] = field(default_factory=list)
 
 
 @dataclass
@@ -217,6 +285,30 @@ class OrdersApi:
         resp = self._transport.request(req)
         return [self._parse_buffer_info(item) for item in resp.body]
 
+    def list_orders(self) -> ListOrdersResponse:
+        """List all KM emission orders for the OMS instance.
+
+        GET /api/v3/order/list?omsId={omsId}
+
+        Returns:
+            ListOrdersResponse containing omsId and a list of OrderSummaryInfo.
+        """
+        req = Request(
+            method="GET",
+            path="/api/v3/order/list",
+            params={"omsId": self._oms_id},
+            headers={
+                "Accept": "application/json",
+                **self._get_auth_headers(),
+            },
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return ListOrdersResponse(
+            oms_id=body["omsId"],
+            order_infos=[self._parse_order_summary_info(item) for item in body.get("orderInfos", [])],
+        )
+
     def get_codes(
         self,
         order_id: str,
@@ -259,6 +351,155 @@ class OrdersApi:
             oms_id=body["omsId"],
             codes=body["codes"],
             block_id=body["blockId"],
+        )
+
+    def get_blocks(
+        self,
+        order_id: str,
+        gtin: str,
+    ) -> GetBlocksResponse:
+        """Get the list of delivered code blocks for an order+GTIN.
+
+        GET /api/v3/order/codes/blocks?omsId={omsId}&orderId={orderId}&gtin={gtin}
+
+        Args:
+            order_id: UUID of the order.
+            gtin:     14-digit GTIN.
+
+        Returns:
+            GetBlocksResponse with a list of Block objects.
+        """
+        req = Request(
+            method="GET",
+            path="/api/v3/order/codes/blocks",
+            params={
+                "omsId": self._oms_id,
+                "orderId": order_id,
+                "gtin": gtin,
+            },
+            headers={
+                "Accept": "application/json",
+                **self._get_auth_headers(),
+            },
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return GetBlocksResponse(
+            oms_id=body["omsId"],
+            order_id=body["orderId"],
+            gtin=body["gtin"],
+            blocks=[
+                Block(
+                    block_id=b["blockId"],
+                    block_date_time=b["blockDateTime"],
+                    quantity=b["quantity"],
+                )
+                for b in body.get("blocks", [])
+            ],
+        )
+
+    def get_codes_retry(self, block_id: str) -> GetCodesResponse:
+        """Retry fetching a previously issued block of KM codes.
+
+        GET /api/v3/order/codes/retry?omsId={omsId}&blockId={blockId}
+
+        Use this when a get_codes() call was successful on the server side
+        but the response was not received (e.g. network error).
+
+        Args:
+            block_id: The blockId returned by the original get_codes() call.
+
+        Returns:
+            GetCodesResponse identical to the original get_codes() response.
+        """
+        req = Request(
+            method="GET",
+            path="/api/v3/order/codes/retry",
+            params={
+                "omsId": self._oms_id,
+                "blockId": block_id,
+            },
+            headers={
+                "Accept": "application/json",
+                **self._get_auth_headers(),
+            },
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return GetCodesResponse(
+            oms_id=body["omsId"],
+            codes=body["codes"],
+            block_id=body["blockId"],
+        )
+
+    def get_product_info(self, order_id: str) -> dict[str, dict[str, Any]]:
+        """Get product attribute info for all GTINs in an order.
+
+        GET /api/v3/order/product?omsId={omsId}&orderId={orderId}
+
+        Returns a free-form dict keyed by GTIN, where each value is a dict
+        of attribute name → attribute value specific to the product group.
+
+        Args:
+            order_id: UUID of the order.
+
+        Returns:
+            dict mapping GTIN string to a dict of product attributes.
+        """
+        req = Request(
+            method="GET",
+            path="/api/v3/order/product",
+            params={
+                "omsId": self._oms_id,
+                "orderId": order_id,
+            },
+            headers={
+                "Accept": "application/json",
+                **self._get_auth_headers(),
+            },
+        )
+        resp = self._transport.request(req)
+        return resp.body  # type: ignore[return-value]
+
+    def search_orders(
+        self,
+        filter: OrderFilter | None = None,
+        limit: int = 10,
+        page: int = 0,
+    ) -> SearchOrdersResponse:
+        """Search orders with optional filtering and pagination.
+
+        POST /api/v3/orders/search?omsId={omsId}
+
+        Args:
+            filter: Optional OrderFilter with search criteria.
+            limit:  Maximum number of results to return.
+            page:   Zero-based page number.
+
+        Returns:
+            SearchOrdersResponse with total_count and a list of OrderSummaryInfo.
+        """
+        body_dict: dict[str, Any] = {
+            "filter": self._order_filter_to_dict(filter) if filter else {},
+            "limit": limit,
+            "page": page,
+        }
+        req = Request(
+            method="POST",
+            path="/api/v3/orders/search",
+            params={"omsId": self._oms_id},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                **self._get_auth_headers(),
+            },
+            json_body=body_dict,
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return SearchOrdersResponse(
+            total_count=body["totalCount"],
+            results=[self._parse_order_summary_info(item) for item in body.get("results", [])],
         )
 
     def close(
@@ -328,13 +569,13 @@ class OrdersApi:
         return BufferInfo(
             gtin=data["gtin"],
             buffer_status=data["bufferStatus"],
-            available_codes=data["availableCodes"],
+            available_codes=data.get("availableCodes", 0),
             total_codes=data["totalCodes"],
-            total_passed=data["totalPassed"],
-            unavailable_codes=data["unavailableCodes"],
-            left_in_buffer=data["leftInBuffer"],
-            pools_exhausted=data["poolsExhausted"],
-            template_id=data["templateId"],
+            total_passed=data.get("totalPassed", 0),
+            unavailable_codes=data.get("unavailableCodes", 0),
+            left_in_buffer=data.get("leftInBuffer", 0),
+            pools_exhausted=data.get("poolsExhausted", False),
+            template_id=data.get("templateId", 0),
             oms_id=data.get("omsId"),
             order_id=data.get("orderId"),
             rejection_reason=data.get("rejectionReason"),
@@ -342,3 +583,36 @@ class OrdersApi:
             production_order_id=data.get("productionOrderId"),
             cis_type=data.get("cisType"),
         )
+
+    @staticmethod
+    def _parse_order_summary_info(data: dict[str, Any]) -> OrderSummaryInfo:
+        return OrderSummaryInfo(
+            order_id=data["orderId"],
+            order_status=data["orderStatus"],
+            created_timestamp=data["createdTimestamp"],
+            product_group=data.get("productGroup"),
+            buffers=[OrdersApi._parse_buffer_info(b) for b in data.get("buffers", [])],
+            decline_reason=data.get("declineReason"),
+            production_order_id=data.get("productionOrderId"),
+            service_provider_id=data.get("serviceProviderId"),
+            payment_type=data.get("paymentType"),
+        )
+
+    @staticmethod
+    def _order_filter_to_dict(f: OrderFilter) -> dict[str, Any]:
+        d: dict[str, Any] = {}
+        if f.start_created_timestamp is not None:
+            d["startCreatedTimestamp"] = f.start_created_timestamp
+        if f.end_created_timestamp is not None:
+            d["endCreatedTimestamp"] = f.end_created_timestamp
+        if f.order_statuses is not None:
+            d["orderStatuses"] = f.order_statuses
+        if f.product_groups is not None:
+            d["productGroups"] = f.product_groups
+        if f.production_order_ids is not None:
+            d["productionOrderIds"] = f.production_order_ids
+        if f.service_provider_ids is not None:
+            d["serviceProviderIds"] = f.service_provider_ids
+        if f.order_ids is not None:
+            d["orderIds"] = f.order_ids
+        return d

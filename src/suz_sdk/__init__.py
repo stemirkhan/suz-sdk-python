@@ -26,14 +26,26 @@ Quick start:
 """
 
 from suz_sdk.api.health import PingResponse
-from suz_sdk.api.integration import IntegrationApi, RegisterConnectionResponse
+from suz_sdk.api.integration import (
+    ConnectionInfo,
+    DeleteConnectionResponse,
+    IntegrationApi,
+    ListConnectionsResponse,
+    RegisterConnectionResponse,
+)
 from suz_sdk.api.orders import (
+    Block,
     BufferInfo,
     CloseOrderResponse,
     CreateOrderResponse,
+    GetBlocksResponse,
     GetCodesResponse,
+    ListOrdersResponse,
+    OrderFilter,
     OrderProduct,
+    OrderSummaryInfo,
     OrdersApi,
+    SearchOrdersResponse,
 )
 from suz_sdk.api.reports import (
     ReceiptFilter,
@@ -98,12 +110,21 @@ __all__ = [
     # Response models
     "PingResponse",
     "RegisterConnectionResponse",
+    "ConnectionInfo",
+    "ListConnectionsResponse",
+    "DeleteConnectionResponse",
     "CreateOrderResponse",
     "BufferInfo",
     "GetCodesResponse",
+    "Block",
+    "GetBlocksResponse",
+    "OrderSummaryInfo",
+    "ListOrdersResponse",
+    "SearchOrdersResponse",
     "CloseOrderResponse",
     # Request models
     "OrderProduct",
+    "OrderFilter",
     # Response models (reports)
     "SendUtilisationResponse",
     "ReportStatusResponse",
@@ -133,4 +154,4 @@ __all__ = [
     "RetryConfig",
 ]
 
-__version__ = "0.6.0"
+__version__ = "0.8.0"

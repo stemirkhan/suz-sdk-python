@@ -5,12 +5,18 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from suz_sdk.api.orders import (
+    Block,
     BufferInfo,
     CloseOrderResponse,
     CreateOrderResponse,
+    GetBlocksResponse,
     GetCodesResponse,
+    ListOrdersResponse,
+    OrderFilter,
     OrderProduct,
+    OrderSummaryInfo,
     OrdersApi,
+    SearchOrdersResponse,
 )
 from suz_sdk.signing.base import BaseSigner
 from suz_sdk.transport.base import Request
@@ -103,6 +109,31 @@ class AsyncOrdersApi:
         resp = await transport.request(req)
         return [OrdersApi._parse_buffer_info(item) for item in resp.body]
 
+    async def list_orders(self) -> ListOrdersResponse:
+        """List all KM emission orders (GET /api/v3/order/list)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        req = Request(
+            method="GET",
+            path="/api/v3/order/list",
+            params={"omsId": self._oms_id},
+            headers={
+                "Accept": "application/json",
+                **(await self._get_auth_headers()),
+            },
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return ListOrdersResponse(
+            oms_id=body["omsId"],
+            order_infos=[
+                OrdersApi._parse_order_summary_info(item)
+                for item in body.get("orderInfos", [])
+            ],
+        )
+
     async def get_codes(
         self,
         order_id: str,
@@ -134,6 +165,129 @@ class AsyncOrdersApi:
             oms_id=body["omsId"],
             codes=body["codes"],
             block_id=body["blockId"],
+        )
+
+    async def get_blocks(
+        self,
+        order_id: str,
+        gtin: str,
+    ) -> GetBlocksResponse:
+        """Get delivered code blocks for an order+GTIN (GET /api/v3/order/codes/blocks)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        req = Request(
+            method="GET",
+            path="/api/v3/order/codes/blocks",
+            params={
+                "omsId": self._oms_id,
+                "orderId": order_id,
+                "gtin": gtin,
+            },
+            headers={
+                "Accept": "application/json",
+                **(await self._get_auth_headers()),
+            },
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return GetBlocksResponse(
+            oms_id=body["omsId"],
+            order_id=body["orderId"],
+            gtin=body["gtin"],
+            blocks=[
+                Block(
+                    block_id=b["blockId"],
+                    block_date_time=b["blockDateTime"],
+                    quantity=b["quantity"],
+                )
+                for b in body.get("blocks", [])
+            ],
+        )
+
+    async def get_codes_retry(self, block_id: str) -> GetCodesResponse:
+        """Retry fetching a previously issued block of codes (GET /api/v3/order/codes/retry)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        req = Request(
+            method="GET",
+            path="/api/v3/order/codes/retry",
+            params={
+                "omsId": self._oms_id,
+                "blockId": block_id,
+            },
+            headers={
+                "Accept": "application/json",
+                **(await self._get_auth_headers()),
+            },
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return GetCodesResponse(
+            oms_id=body["omsId"],
+            codes=body["codes"],
+            block_id=body["blockId"],
+        )
+
+    async def get_product_info(self, order_id: str) -> dict[str, dict[str, Any]]:
+        """Get product attribute info for all GTINs in an order (GET /api/v3/order/product)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        req = Request(
+            method="GET",
+            path="/api/v3/order/product",
+            params={
+                "omsId": self._oms_id,
+                "orderId": order_id,
+            },
+            headers={
+                "Accept": "application/json",
+                **(await self._get_auth_headers()),
+            },
+        )
+        resp = await transport.request(req)
+        return resp.body  # type: ignore[return-value]
+
+    async def search_orders(
+        self,
+        filter: OrderFilter | None = None,
+        limit: int = 10,
+        page: int = 0,
+    ) -> SearchOrdersResponse:
+        """Search orders with filtering and pagination (POST /api/v3/orders/search)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        body_dict: dict[str, Any] = {
+            "filter": OrdersApi._order_filter_to_dict(filter) if filter else {},
+            "limit": limit,
+            "page": page,
+        }
+        req = Request(
+            method="POST",
+            path="/api/v3/orders/search",
+            params={"omsId": self._oms_id},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                **(await self._get_auth_headers()),
+            },
+            json_body=body_dict,
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return SearchOrdersResponse(
+            total_count=body["totalCount"],
+            results=[
+                OrdersApi._parse_order_summary_info(item)
+                for item in body.get("results", [])
+            ],
         )
 
     async def close(
@@ -169,3 +323,20 @@ class AsyncOrdersApi:
         )
         resp = await transport.request(req)
         return CloseOrderResponse(oms_id=resp.body["omsId"])
+
+
+# Re-export for convenience
+__all__ = [
+    "AsyncOrdersApi",
+    "Block",
+    "BufferInfo",
+    "CloseOrderResponse",
+    "CreateOrderResponse",
+    "GetBlocksResponse",
+    "GetCodesResponse",
+    "ListOrdersResponse",
+    "OrderFilter",
+    "OrderProduct",
+    "OrderSummaryInfo",
+    "SearchOrdersResponse",
+]

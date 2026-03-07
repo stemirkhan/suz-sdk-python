@@ -34,6 +34,8 @@ Notes:
 """
 
 import json
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 from pydantic import BaseModel
 
@@ -60,6 +62,33 @@ class RegisterConnectionResponse(BaseModel):
     rejection_reason: str | None = None
 
 
+@dataclass
+class ConnectionInfo:
+    """Info about a registered integration connection (§4.4.26)."""
+
+    oms_connection: str
+    address: str | None = None
+    program_name: str | None = None
+    product_groups: list[str] = field(default_factory=list)
+    product_version: str | None = None
+    vendor_inn: str | None = None
+
+
+@dataclass
+class ListConnectionsResponse:
+    """Response from GET /api/v3/integration/connection (§4.4.26)."""
+
+    oms_connection_infos: list[ConnectionInfo]
+    total: int
+
+
+@dataclass
+class DeleteConnectionResponse:
+    """Response from DELETE /api/v3/integration/connection (§4.4.27)."""
+
+    success: bool
+
+
 class IntegrationApi:
     """Client for the integration registration endpoint (§9.2).
 
@@ -73,6 +102,8 @@ class IntegrationApi:
                            most product groups; not required for pharmaceuticals.
         registration_key:  Registration key issued by CRPT.  Passed as the
                            ``X-RegistrationKey`` header.
+        get_auth_headers:  Optional callable returning auth headers.  Required
+                           for list_connections() and delete_connection().
     """
 
     def __init__(
@@ -81,11 +112,13 @@ class IntegrationApi:
         oms_id: str,
         signer: BaseSigner | None,
         registration_key: str | None,
+        get_auth_headers: Callable[[], dict[str, str]] | None = None,
     ) -> None:
         self._transport = transport
         self._oms_id = oms_id
         self._signer = signer
         self._registration_key = registration_key
+        self._get_auth_headers = get_auth_headers
 
     def register_connection(
         self,
@@ -145,4 +178,83 @@ class IntegrationApi:
             oms_connection=body.get("omsConnection"),
             name=body.get("name"),
             rejection_reason=body.get("rejectionReason"),
+        )
+
+    def list_connections(
+        self,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> ListConnectionsResponse:
+        """List registered integration connections for the OMS instance.
+
+        GET /api/v3/integration/connection?omsId={omsId}&limit={limit}&offset={offset}
+
+        Args:
+            limit:  Maximum number of connections to return.
+            offset: Number of connections to skip.
+
+        Returns:
+            ListConnectionsResponse with connections and total count.
+        """
+        auth_headers = self._get_auth_headers() if self._get_auth_headers else {}
+        req = Request(
+            method="GET",
+            path="/api/v3/integration/connection",
+            params={
+                "omsId": self._oms_id,
+                "limit": str(limit),
+                "offset": str(offset),
+            },
+            headers={
+                "Accept": "application/json",
+                **auth_headers,
+            },
+        )
+        resp = self._transport.request(req)
+        body: dict[str, Any] = resp.body
+        return ListConnectionsResponse(
+            oms_connection_infos=[
+                self._parse_connection_info(item)
+                for item in body.get("omsConnectionInfos", [])
+            ],
+            total=body["total"],
+        )
+
+    def delete_connection(self, oms_connection: str) -> DeleteConnectionResponse:
+        """Delete a registered integration connection.
+
+        DELETE /api/v3/integration/connection?omsId={omsId}&omsConnection={omsConnection}
+
+        Args:
+            oms_connection: UUID of the connection to delete.
+
+        Returns:
+            DeleteConnectionResponse with success flag.
+        """
+        auth_headers = self._get_auth_headers() if self._get_auth_headers else {}
+        req = Request(
+            method="DELETE",
+            path="/api/v3/integration/connection",
+            params={
+                "omsId": self._oms_id,
+                "omsConnection": oms_connection,
+            },
+            headers={
+                "Accept": "application/json",
+                **auth_headers,
+            },
+        )
+        resp = self._transport.request(req)
+        body: dict[str, Any] = resp.body
+        return DeleteConnectionResponse(success=body.get("success", False))
+
+    @staticmethod
+    def _parse_connection_info(data: dict[str, Any]) -> ConnectionInfo:
+        return ConnectionInfo(
+            oms_connection=data["omsConnection"],
+            address=data.get("address"),
+            program_name=data.get("programName"),
+            product_groups=data.get("productGroups") or [],
+            product_version=data.get("productVersion"),
+            vendor_inn=data.get("vendorInn"),
         )

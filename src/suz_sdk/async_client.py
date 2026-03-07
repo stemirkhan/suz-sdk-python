@@ -128,6 +128,7 @@ class AsyncSuzClient:
             oms_id=self._config.oms_id,
             signer=self._config.signer,
             registration_key=self._config.registration_key,
+            get_auth_headers=self._auth_headers,
         )
         self.orders = AsyncOrdersApi(
             transport=self._transport,
