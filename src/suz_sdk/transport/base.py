@@ -80,3 +80,14 @@ class BaseTransport(Protocol):
             SuzApiError:        Any other non-2xx response.
         """
         ...
+
+
+class AsyncBaseTransport(Protocol):
+    """Protocol that all async transport implementations must satisfy."""
+
+    async def request(self, req: Request) -> Response:
+        """Execute an async HTTP request and return the parsed response.
+
+        Same contract as BaseTransport.request, but awaitable.
+        """
+        ...

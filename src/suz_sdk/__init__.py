@@ -42,10 +42,19 @@ from suz_sdk.api.reports import (
     SearchReceiptsResponse,
     SendUtilisationResponse,
 )
+from suz_sdk.api.async_health import AsyncHealthApi
+from suz_sdk.api.async_integration import AsyncIntegrationApi
+from suz_sdk.api.async_orders import AsyncOrdersApi
+from suz_sdk.api.async_reports import AsyncReportsApi
+from suz_sdk.async_client import AsyncSuzClient
+from suz_sdk.auth.async_auth_api import AsyncAuthApi
+from suz_sdk.auth.async_token_manager import AsyncTokenManager
+from suz_sdk.auth.async_true_api import AsyncTrueApiAuth
 from suz_sdk.auth.auth_api import AuthApi
 from suz_sdk.auth.token_manager import TokenManager
 from suz_sdk.auth.true_api import TrueApiAuth
 from suz_sdk.client import SuzClient
+from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
 from suz_sdk.config import Environment, SuzConfig
 from suz_sdk.exceptions import (
     SuzApiError,
@@ -64,8 +73,9 @@ from suz_sdk.signing.cryptopro import CryptoProSigner
 from suz_sdk.signing.noop import NoopSigner
 
 __all__ = [
-    # Client
+    # Clients
     "SuzClient",
+    "AsyncSuzClient",
     # Config
     "SuzConfig",
     "Environment",
@@ -99,15 +109,25 @@ __all__ = [
     "SearchReceiptsResponse",
     # Request models (reports)
     "ReceiptFilter",
-    # API namespaces
+    # Sync API namespaces
     "OrdersApi",
     "ReportsApi",
-    # Auth
+    "IntegrationApi",
+    # Sync auth
     "TrueApiAuth",
     "TokenManager",
     "AuthApi",
-    # API namespaces (for type hints)
-    "IntegrationApi",
+    # Async API namespaces
+    "AsyncHealthApi",
+    "AsyncIntegrationApi",
+    "AsyncOrdersApi",
+    "AsyncReportsApi",
+    # Async auth
+    "AsyncTrueApiAuth",
+    "AsyncTokenManager",
+    "AsyncAuthApi",
+    # Async transport
+    "AsyncHttpxTransport",
 ]
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"

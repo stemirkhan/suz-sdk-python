@@ -11,6 +11,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.6.0] — 2026-03-07
+
+### Added
+
+- `AsyncSuzClient` — async counterpart to `SuzClient`, built on `httpx.AsyncClient`; supports `async with` context manager and `await client.aclose()`
+- `AsyncHttpxTransport` — async HTTP transport wrapping `httpx.AsyncClient`; identical error mapping to the sync transport
+- `AsyncHealthApi`, `AsyncIntegrationApi`, `AsyncOrdersApi`, `AsyncReportsApi` — async API modules mirroring the sync API surface
+- `AsyncTrueApiAuth` — async implementation of the two-step True API auth flow (GET `/auth/key` → POST `/auth/simpleSignIn/{omsConnection}`)
+- `AsyncTokenManager` — async token cache with `asyncio.Lock` for concurrency-safe refresh; `get_token()` and `authenticate()` coroutines
+- `AsyncAuthApi` — exposes `await client.auth.authenticate()` on `AsyncSuzClient`
+- All new classes exported from the top-level `suz_sdk` package
+- 34 new unit tests with `@pytest.mark.anyio` covering structure, context manager, auth headers, all API methods, auth flow, and exports
+- Total: 236 tests, all passing
+
+---
+
 ## [0.5.0] — 2026-03-07
 
 ### Added
