@@ -57,6 +57,15 @@ class SuzSignatureError(SuzError):
     """
 
 
+class SuzSigningError(SuzError):
+    """Raised when local signing fails (e.g. cryptcp not found, non-zero exit).
+
+    This is a client-side error raised before the request is sent, as opposed
+    to SuzSignatureError which is raised in response to an HTTP 413 from the
+    server.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Validation errors
 # ---------------------------------------------------------------------------

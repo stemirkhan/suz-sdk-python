@@ -53,12 +53,14 @@ from suz_sdk.exceptions import (
     SuzError,
     SuzRateLimitError,
     SuzSignatureError,
+    SuzSigningError,
     SuzTimeoutError,
     SuzTokenExpiredError,
     SuzTransportError,
     SuzValidationError,
 )
 from suz_sdk.signing.base import BaseSigner
+from suz_sdk.signing.cryptopro import CryptoProSigner
 from suz_sdk.signing.noop import NoopSigner
 
 __all__ = [
@@ -74,12 +76,14 @@ __all__ = [
     "SuzAuthError",
     "SuzTokenExpiredError",
     "SuzSignatureError",
+    "SuzSigningError",
     "SuzValidationError",
     "SuzApiError",
     "SuzRateLimitError",
     # Signing
     "BaseSigner",
     "NoopSigner",
+    "CryptoProSigner",
     # Response models
     "PingResponse",
     "RegisterConnectionResponse",
@@ -106,4 +110,4 @@ __all__ = [
     "IntegrationApi",
 ]
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

@@ -11,6 +11,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.5.0] — 2026-03-07
+
+### Added
+
+- `CryptoProSigner` — production-ready signer that delegates to the CryptoPro CSP `cryptcp` CLI tool; produces detached DER-encoded CMS signatures (GOST R 34.10-2012) Base64-encoded, as required by the X-Signature header (§2.3.1)
+- Constructor options: `thumbprint` (SHA-1 hex, 40 chars), `cryptcp_path` (default `"cryptcp"`, override to `/opt/cprocsp/bin/amd64/cryptcp` on Linux), `nochain`, `nopolicy`, `extra_args`, `timeout`
+- `SuzSigningError` — new client-side exception raised when local signing fails (cryptcp not found, non-zero exit, timeout); distinct from `SuzSignatureError` which is the server-side HTTP 413
+- Both `CryptoProSigner` and `SuzSigningError` exported from the top-level `suz_sdk` package
+- 30 new unit tests covering happy path, command construction (all flags), error handling (FileNotFoundError, non-zero exit, timeout, missing output file), and protocol conformance
+- `pyproject.toml` version corrected and aligned with package version
+
+---
+
 ## [0.4.0] — 2026-03-07
 
 ### Added
@@ -78,7 +91,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - English and Russian documentation (`README.md`, `README.ru.md`)
 - `CONTRIBUTING.md` — contribution guide
 
-[Unreleased]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.1.0...v0.2.0
