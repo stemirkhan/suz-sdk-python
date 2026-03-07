@@ -25,6 +25,10 @@ Quick start:
     print(info.api_version)
 """
 
+from suz_sdk.api.async_health import AsyncHealthApi
+from suz_sdk.api.async_integration import AsyncIntegrationApi
+from suz_sdk.api.async_orders import AsyncOrdersApi
+from suz_sdk.api.async_reports import AsyncReportsApi
 from suz_sdk.api.health import PingResponse
 from suz_sdk.api.integration import (
     ConnectionInfo,
@@ -43,21 +47,17 @@ from suz_sdk.api.orders import (
     ListOrdersResponse,
     OrderFilter,
     OrderProduct,
-    OrderSummaryInfo,
     OrdersApi,
+    OrderSummaryInfo,
     SearchOrdersResponse,
 )
 from suz_sdk.api.reports import (
     ReceiptFilter,
-    ReportStatusResponse,
     ReportsApi,
+    ReportStatusResponse,
     SearchReceiptsResponse,
     SendUtilisationResponse,
 )
-from suz_sdk.api.async_health import AsyncHealthApi
-from suz_sdk.api.async_integration import AsyncIntegrationApi
-from suz_sdk.api.async_orders import AsyncOrdersApi
-from suz_sdk.api.async_reports import AsyncReportsApi
 from suz_sdk.async_client import AsyncSuzClient
 from suz_sdk.auth.async_auth_api import AsyncAuthApi
 from suz_sdk.auth.async_token_manager import AsyncTokenManager
@@ -66,8 +66,6 @@ from suz_sdk.auth.auth_api import AuthApi
 from suz_sdk.auth.token_manager import TokenManager
 from suz_sdk.auth.true_api import TrueApiAuth
 from suz_sdk.client import SuzClient
-from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
-from suz_sdk.transport.retry import RetryConfig
 from suz_sdk.config import Environment, SuzConfig
 from suz_sdk.exceptions import (
     SuzApiError,
@@ -84,6 +82,8 @@ from suz_sdk.exceptions import (
 from suz_sdk.signing.base import BaseSigner
 from suz_sdk.signing.cryptopro import CryptoProSigner
 from suz_sdk.signing.noop import NoopSigner
+from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+from suz_sdk.transport.retry import RetryConfig
 
 __all__ = [
     # Clients
@@ -154,4 +154,4 @@ __all__ = [
     "RetryConfig",
 ]
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

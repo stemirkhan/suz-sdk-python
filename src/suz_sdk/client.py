@@ -196,7 +196,7 @@ class SuzClient:
     def close(self) -> None:
         """Close the underlying transports and release resources."""
         if self._owns_transport and hasattr(self._transport, "close"):
-            self._transport.close()  # type: ignore[union-attr]
+            self._transport.close()
         if self._true_api_transport is not None:
             self._true_api_transport.close()
 

@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 from suz_sdk.api.orders import (
     Block,
@@ -14,8 +14,8 @@ from suz_sdk.api.orders import (
     ListOrdersResponse,
     OrderFilter,
     OrderProduct,
-    OrderSummaryInfo,
     OrdersApi,
+    OrderSummaryInfo,
     SearchOrdersResponse,
 )
 from suz_sdk.signing.base import BaseSigner
@@ -251,7 +251,7 @@ class AsyncOrdersApi:
             },
         )
         resp = await transport.request(req)
-        return resp.body  # type: ignore[return-value]
+        return cast(dict[str, dict[str, Any]], resp.body)
 
     async def search_orders(
         self,

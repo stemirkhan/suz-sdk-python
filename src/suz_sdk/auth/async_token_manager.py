@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from suz_sdk.auth.async_true_api import AsyncTrueApiAuth
 
@@ -51,13 +51,13 @@ class AsyncTokenManager:
     def _needs_refresh(self) -> bool:
         if self._token is None or self._expires_at is None:
             return True
-        remaining = (self._expires_at - datetime.now(timezone.utc)).total_seconds()
+        remaining = (self._expires_at - datetime.now(UTC)).total_seconds()
         return remaining < _PRE_REFRESH_SECONDS
 
     async def _do_refresh(self) -> None:
         logger.info("Refreshing clientToken via True API (async)")
         self._token = await self._auth.fetch_token()
-        self._expires_at = datetime.now(timezone.utc) + timedelta(
+        self._expires_at = datetime.now(UTC) + timedelta(
             hours=_TRUE_API_TOKEN_TTL_HOURS
         )
         logger.info("clientToken refreshed; expires at %s", self._expires_at.isoformat())

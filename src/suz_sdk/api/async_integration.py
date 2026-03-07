@@ -5,7 +5,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from suz_sdk.api.integration import (
-    ConnectionInfo,
     DeleteConnectionResponse,
     IntegrationApi,
     ListConnectionsResponse,
@@ -68,7 +67,7 @@ class AsyncIntegrationApi:
             raw_body=body_bytes,
         )
         resp = await transport.request(req)
-        body: dict[str, str] = resp.body  # type: ignore[assignment]
+        body: dict[str, str] = resp.body
         return RegisterConnectionResponse(
             status=body["status"],
             oms_connection=body.get("omsConnection"),

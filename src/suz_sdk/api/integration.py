@@ -34,8 +34,9 @@ Notes:
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -172,7 +173,7 @@ class IntegrationApi:
         )
         resp = self._transport.request(req)
 
-        body: dict[str, str] = resp.body  # type: ignore[assignment]
+        body: dict[str, str] = resp.body
         return RegisterConnectionResponse(
             status=body["status"],
             oms_connection=body.get("omsConnection"),

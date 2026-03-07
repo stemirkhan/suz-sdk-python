@@ -23,7 +23,7 @@ True API notes (§9.3.2):
         Production: https://markirovka.crpt.ru/api/v3/true-api
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field, model_validator
 from suz_sdk.signing.base import BaseSigner
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     """Predefined environments for the СУЗ API.
 
     Choose SANDBOX for development and testing.  Use PRODUCTION for

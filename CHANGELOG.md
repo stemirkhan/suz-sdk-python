@@ -11,6 +11,41 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.9.0] — 2026-03-07
+
+### Changed
+
+- `Environment` now inherits from `StrEnum` instead of `str, Enum` (Python 3.11+)
+
+### Fixed
+
+- **mypy strict**: removed 10 now-unnecessary `# type: ignore` comments that mypy 1.9 no longer requires; `resp.body` assignment to typed variables is now accepted without annotation suppression
+- **mypy strict**: `get_product_info()` in `OrdersApi` / `AsyncOrdersApi` now uses `cast(dict[str, dict[str, Any]], resp.body)` to satisfy `no-any-return`
+- **mypy strict**: `get_receipt()` in `ReportsApi` / `AsyncReportsApi` now uses `cast(list[dict[str, Any]], ...)` for the same reason
+- **ruff**: import blocks re-sorted in `__init__.py`, `orders.py`, `async_orders.py`, `reports.py`, `async_reports.py`; `Callable` moved from `typing` to `collections.abc`; `datetime.UTC` alias applied; unused imports removed (`ConnectionInfo` in `async_integration.py`, `field` in `reports.py`)
+- `_parse_buffer_info` uses `.get()` with safe defaults for fields that may be absent in `list_orders` responses (`availableCodes`, `totalPassed`, `poolsExhausted`, `templateId`)
+
+---
+
+## [0.8.0] — 2026-03-07
+
+### Added
+
+- **Orders — 5 new methods** (sync + async):
+  - `list_orders()` — `GET /api/v3/order/list` — all orders for the OMS instance (§4.4.3)
+  - `get_blocks()` — `GET /api/v3/order/codes/blocks` — delivered code blocks for order + GTIN (§4.4.5)
+  - `get_codes_retry()` — `GET /api/v3/order/codes/retry` — re-fetch a block by `blockId` after network loss (§4.4.6)
+  - `get_product_info()` — `GET /api/v3/order/product` — free-form product attributes keyed by GTIN (§4.4.7)
+  - `search_orders()` — `POST /api/v3/orders/search` — paginated search with `OrderFilter` (§4.4.29)
+- **Integration — 2 new methods** (sync + async):
+  - `list_connections()` — `GET /api/v3/integration/connection` — paginated list of registered connections (§4.4.26)
+  - `delete_connection()` — `DELETE /api/v3/integration/connection` — remove a connection by UUID (§4.4.27)
+- New models: `Block`, `GetBlocksResponse`, `OrderSummaryInfo`, `ListOrdersResponse`, `OrderFilter`, `SearchOrdersResponse`, `ConnectionInfo`, `ListConnectionsResponse`, `DeleteConnectionResponse` — all exported from the top-level `suz_sdk` package
+- `IntegrationApi` and `AsyncIntegrationApi` accept optional `get_auth_headers` for authenticated endpoints
+- 67 new tests (46 sync + 21 async); total: 327 tests, all passing
+
+---
+
 ## [0.7.0] — 2026-03-07
 
 ### Added
@@ -121,7 +156,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - English and Russian documentation (`README.md`, `README.ru.md`)
 - `CONTRIBUTING.md` — contribution guide
 
-[Unreleased]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.2.0...v0.3.0

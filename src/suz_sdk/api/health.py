@@ -92,7 +92,7 @@ class HealthApi:
 
         # Defensive: body is guaranteed non-None here because the transport
         # raises on non-2xx, and a 200 ping always returns JSON.
-        body: dict[str, str] = resp.body  # type: ignore[assignment]
+        body: dict[str, str] = resp.body
         return PingResponse(
             oms_id=body["omsId"],
             api_version=body["apiVersion"],

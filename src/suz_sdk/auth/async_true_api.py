@@ -42,7 +42,7 @@ class AsyncTrueApiAuth:
                 headers={"Accept": "application/json"},
             )
         )
-        challenge: dict[str, str] = auth_key_resp.body  # type: ignore[assignment]
+        challenge: dict[str, str] = auth_key_resp.body
         uuid = challenge.get("uuid")
         data = challenge.get("data")
         if not uuid or not data:
@@ -63,7 +63,7 @@ class AsyncTrueApiAuth:
                 json_body={"uuid": uuid, "data": signed_data},
             )
         )
-        payload: dict[str, str] = token_resp.body  # type: ignore[assignment]
+        payload: dict[str, str] = token_resp.body
         token = payload.get("token") or payload.get("uuidToken")
         if not token:
             raise SuzAuthError(

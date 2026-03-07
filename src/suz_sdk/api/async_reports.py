@@ -2,12 +2,12 @@
 
 import json
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 from suz_sdk.api.reports import (
     ReceiptFilter,
-    ReportStatusResponse,
     ReportsApi,
+    ReportStatusResponse,
     SearchReceiptsResponse,
     SendUtilisationResponse,
 )
@@ -112,7 +112,7 @@ class AsyncReportsApi:
             },
         )
         resp = await transport.request(req)
-        return resp.body["results"]
+        return cast(list[dict[str, Any]], resp.body["results"])
 
     async def search_receipts(
         self,

@@ -13,7 +13,7 @@ Token TTL (§9.3.2, Table 380):
 
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from suz_sdk.auth.true_api import TrueApiAuth
 
@@ -91,7 +91,7 @@ class TokenManager:
         """Return True if the token is absent or expires soon."""
         if self._token is None or self._expires_at is None:
             return True
-        remaining = (self._expires_at - datetime.now(timezone.utc)).total_seconds()
+        remaining = (self._expires_at - datetime.now(UTC)).total_seconds()
         return remaining < _PRE_REFRESH_SECONDS
 
     def _do_refresh(self) -> None:
@@ -101,7 +101,7 @@ class TokenManager:
         """
         logger.info("Refreshing clientToken via True API")
         self._token = self._auth.fetch_token()
-        self._expires_at = datetime.now(timezone.utc) + timedelta(
+        self._expires_at = datetime.now(UTC) + timedelta(
             hours=_TRUE_API_TOKEN_TTL_HOURS
         )
         logger.info("clientToken refreshed; expires at %s", self._expires_at.isoformat())

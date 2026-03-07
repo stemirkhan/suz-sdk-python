@@ -20,12 +20,12 @@ Typical flow:
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, cast
 
 from suz_sdk.signing.base import BaseSigner
 from suz_sdk.transport.base import BaseTransport, Request
-
 
 # ---------------------------------------------------------------------------
 # Request / response models
@@ -306,7 +306,9 @@ class OrdersApi:
         body = resp.body
         return ListOrdersResponse(
             oms_id=body["omsId"],
-            order_infos=[self._parse_order_summary_info(item) for item in body.get("orderInfos", [])],
+            order_infos=[
+                self._parse_order_summary_info(item) for item in body.get("orderInfos", [])
+            ],
         )
 
     def get_codes(
@@ -459,7 +461,7 @@ class OrdersApi:
             },
         )
         resp = self._transport.request(req)
-        return resp.body  # type: ignore[return-value]
+        return cast(dict[str, dict[str, Any]], resp.body)
 
     def search_orders(
         self,

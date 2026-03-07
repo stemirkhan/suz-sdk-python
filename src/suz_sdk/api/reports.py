@@ -14,12 +14,12 @@ Typical flow:
 """
 
 import json
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, cast
 
 from suz_sdk.signing.base import BaseSigner
 from suz_sdk.transport.base import BaseTransport, Request
-
 
 # ---------------------------------------------------------------------------
 # Response models
@@ -237,7 +237,7 @@ class ReportsApi:
             },
         )
         resp = self._transport.request(req)
-        return resp.body["results"]
+        return cast(list[dict[str, Any]], resp.body["results"])
 
     def search_receipts(
         self,
