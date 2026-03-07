@@ -9,7 +9,18 @@ from suz_sdk.api.async_integration import AsyncIntegrationApi
 from suz_sdk.api.async_orders import AsyncOrdersApi
 from suz_sdk.api.async_reports import AsyncReportsApi
 from suz_sdk.api.health import PingResponse
-from suz_sdk.api.orders import BufferInfo, CreateOrderResponse, GetCodesResponse, OrderProduct
+from suz_sdk.api.integration import ConnectionInfo, DeleteConnectionResponse, ListConnectionsResponse
+from suz_sdk.api.orders import (
+    Block,
+    BufferInfo,
+    CreateOrderResponse,
+    GetBlocksResponse,
+    GetCodesResponse,
+    ListOrdersResponse,
+    OrderFilter,
+    OrderProduct,
+    SearchOrdersResponse,
+)
 from suz_sdk.api.reports import ReceiptFilter, SendUtilisationResponse
 from suz_sdk.async_client import AsyncSuzClient
 from suz_sdk.auth.async_auth_api import AsyncAuthApi
@@ -297,6 +308,144 @@ class TestAsyncOrdersApi:
         assert t.last_request.method == "POST"
         assert t.last_request.path == "/api/v3/order/close"
 
+    @pytest.mark.anyio
+    async def test_list_orders_returns_response(self):
+        t = AsyncCapturingTransport({
+            "omsId": OMS_ID,
+            "orderInfos": [
+                {
+                    "orderId": ORDER_ID,
+                    "orderStatus": "ACTIVE",
+                    "createdTimestamp": 1700000000000,
+                }
+            ],
+        })
+        client = make_client(t)
+        resp = await client.orders.list_orders()
+        assert isinstance(resp, ListOrdersResponse)
+        assert resp.oms_id == OMS_ID
+        assert len(resp.order_infos) == 1
+        assert resp.order_infos[0].order_id == ORDER_ID
+
+    @pytest.mark.anyio
+    async def test_list_orders_method_and_path(self):
+        t = AsyncCapturingTransport({"omsId": OMS_ID, "orderInfos": []})
+        client = make_client(t)
+        await client.orders.list_orders()
+        assert t.last_request.method == "GET"
+        assert t.last_request.path == "/api/v3/order/list"
+        assert t.last_request.params["omsId"] == OMS_ID
+
+    @pytest.mark.anyio
+    async def test_get_blocks_returns_response(self):
+        block_id = "blk-aabbcc"
+        t = AsyncCapturingTransport({
+            "omsId": OMS_ID,
+            "orderId": ORDER_ID,
+            "gtin": GTIN,
+            "blocks": [{"blockId": block_id, "blockDateTime": 1700000000000, "quantity": 5}],
+        })
+        client = make_client(t)
+        resp = await client.orders.get_blocks(ORDER_ID, GTIN)
+        assert isinstance(resp, GetBlocksResponse)
+        assert resp.gtin == GTIN
+        assert len(resp.blocks) == 1
+        assert isinstance(resp.blocks[0], Block)
+        assert resp.blocks[0].block_id == block_id
+        assert resp.blocks[0].quantity == 5
+
+    @pytest.mark.anyio
+    async def test_get_blocks_method_and_path(self):
+        t = AsyncCapturingTransport(
+            {"omsId": OMS_ID, "orderId": ORDER_ID, "gtin": GTIN, "blocks": []}
+        )
+        client = make_client(t)
+        await client.orders.get_blocks(ORDER_ID, GTIN)
+        req = t.last_request
+        assert req.method == "GET"
+        assert req.path == "/api/v3/order/codes/blocks"
+        assert req.params["orderId"] == ORDER_ID
+        assert req.params["gtin"] == GTIN
+
+    @pytest.mark.anyio
+    async def test_get_codes_retry_returns_response(self):
+        block_id = "blk-retry-1"
+        t = AsyncCapturingTransport(
+            {"omsId": OMS_ID, "codes": ["c1", "c2"], "blockId": block_id}
+        )
+        client = make_client(t)
+        resp = await client.orders.get_codes_retry(block_id)
+        assert isinstance(resp, GetCodesResponse)
+        assert resp.block_id == block_id
+        assert resp.codes == ["c1", "c2"]
+
+    @pytest.mark.anyio
+    async def test_get_codes_retry_method_and_path(self):
+        block_id = "blk-retry-1"
+        t = AsyncCapturingTransport({"omsId": OMS_ID, "codes": [], "blockId": block_id})
+        client = make_client(t)
+        await client.orders.get_codes_retry(block_id)
+        req = t.last_request
+        assert req.method == "GET"
+        assert req.path == "/api/v3/order/codes/retry"
+        assert req.params["blockId"] == block_id
+
+    @pytest.mark.anyio
+    async def test_get_product_info_returns_dict(self):
+        t = AsyncCapturingTransport({GTIN: {"attr1": "val1"}})
+        client = make_client(t)
+        resp = await client.orders.get_product_info(ORDER_ID)
+        assert isinstance(resp, dict)
+        assert GTIN in resp
+        assert resp[GTIN]["attr1"] == "val1"
+
+    @pytest.mark.anyio
+    async def test_get_product_info_method_and_path(self):
+        t = AsyncCapturingTransport({})
+        client = make_client(t)
+        await client.orders.get_product_info(ORDER_ID)
+        req = t.last_request
+        assert req.method == "GET"
+        assert req.path == "/api/v3/order/product"
+        assert req.params["orderId"] == ORDER_ID
+
+    @pytest.mark.anyio
+    async def test_search_orders_returns_response(self):
+        t = AsyncCapturingTransport({
+            "totalCount": 2,
+            "results": [
+                {"orderId": ORDER_ID, "orderStatus": "ACTIVE", "createdTimestamp": 1700000000000},
+            ],
+        })
+        client = make_client(t)
+        resp = await client.orders.search_orders(limit=5, page=0)
+        assert isinstance(resp, SearchOrdersResponse)
+        assert resp.total_count == 2
+        assert len(resp.results) == 1
+        assert resp.results[0].order_id == ORDER_ID
+
+    @pytest.mark.anyio
+    async def test_search_orders_method_and_path(self):
+        t = AsyncCapturingTransport({"totalCount": 0, "results": []})
+        client = make_client(t)
+        await client.orders.search_orders()
+        req = t.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/orders/search"
+        assert req.params["omsId"] == OMS_ID
+
+    @pytest.mark.anyio
+    async def test_search_orders_filter_in_body(self):
+        t = AsyncCapturingTransport({"totalCount": 0, "results": []})
+        client = make_client(t)
+        f = OrderFilter(order_statuses=["ACTIVE"], order_ids=[ORDER_ID])
+        await client.orders.search_orders(filter=f, limit=20, page=1)
+        body = t.last_request.json_body
+        assert body["limit"] == 20
+        assert body["page"] == 1
+        assert body["filter"]["orderStatuses"] == ["ACTIVE"]
+        assert body["filter"]["orderIds"] == [ORDER_ID]
+
 
 # ---------------------------------------------------------------------------
 # AsyncReportsApi
@@ -344,6 +493,115 @@ class TestAsyncReportsApi:
         resp = await client.reports.search_receipts(ReceiptFilter(order_ids=["x"]))
         assert resp.total_count == 0
         assert resp.results == []
+
+
+# ---------------------------------------------------------------------------
+# AsyncIntegrationApi — new methods
+# ---------------------------------------------------------------------------
+
+OMS_CONNECTION = "aabb1234-5678-90ab-cdef-1234567890ab"
+
+_CONN_INFO = {
+    "omsConnection": OMS_CONNECTION,
+    "address": "г.Москва, ул.1",
+    "programName": "ERP",
+    "productGroups": ["milk"],
+    "productVersion": "1.0",
+    "vendorInn": "1234567890",
+}
+
+
+class TestAsyncIntegrationApiNew:
+    @pytest.mark.anyio
+    async def test_list_connections_returns_response(self):
+        t = AsyncCapturingTransport(
+            {"omsConnectionInfos": [_CONN_INFO], "total": 1}
+        )
+        client = make_client(t)
+        resp = await client.integration.list_connections()
+        assert isinstance(resp, ListConnectionsResponse)
+        assert resp.total == 1
+        assert len(resp.oms_connection_infos) == 1
+        conn = resp.oms_connection_infos[0]
+        assert isinstance(conn, ConnectionInfo)
+        assert conn.oms_connection == OMS_CONNECTION
+        assert conn.address == "г.Москва, ул.1"
+        assert conn.product_groups == ["milk"]
+
+    @pytest.mark.anyio
+    async def test_list_connections_method_and_path(self):
+        t = AsyncCapturingTransport({"omsConnectionInfos": [], "total": 0})
+        client = make_client(t)
+        await client.integration.list_connections()
+        req = t.last_request
+        assert req.method == "GET"
+        assert req.path == "/api/v3/integration/connection"
+        assert req.params["omsId"] == OMS_ID
+
+    @pytest.mark.anyio
+    async def test_list_connections_default_limit_and_offset(self):
+        t = AsyncCapturingTransport({"omsConnectionInfos": [], "total": 0})
+        client = make_client(t)
+        await client.integration.list_connections()
+        req = t.last_request
+        assert req.params["limit"] == "10"
+        assert req.params["offset"] == "0"
+
+    @pytest.mark.anyio
+    async def test_list_connections_custom_limit_and_offset(self):
+        t = AsyncCapturingTransport({"omsConnectionInfos": [], "total": 0})
+        client = make_client(t)
+        await client.integration.list_connections(limit=25, offset=50)
+        req = t.last_request
+        assert req.params["limit"] == "25"
+        assert req.params["offset"] == "50"
+
+    @pytest.mark.anyio
+    async def test_list_connections_empty_infos_when_missing(self):
+        t = AsyncCapturingTransport({"total": 0})
+        client = make_client(t)
+        resp = await client.integration.list_connections()
+        assert resp.oms_connection_infos == []
+
+    @pytest.mark.anyio
+    async def test_delete_connection_returns_response(self):
+        t = AsyncCapturingTransport({"success": True})
+        client = make_client(t)
+        resp = await client.integration.delete_connection(OMS_CONNECTION)
+        assert isinstance(resp, DeleteConnectionResponse)
+        assert resp.success is True
+
+    @pytest.mark.anyio
+    async def test_delete_connection_method_and_path(self):
+        t = AsyncCapturingTransport({"success": True})
+        client = make_client(t)
+        await client.integration.delete_connection(OMS_CONNECTION)
+        req = t.last_request
+        assert req.method == "DELETE"
+        assert req.path == "/api/v3/integration/connection"
+
+    @pytest.mark.anyio
+    async def test_delete_connection_sends_correct_params(self):
+        t = AsyncCapturingTransport({"success": True})
+        client = make_client(t)
+        await client.integration.delete_connection(OMS_CONNECTION)
+        req = t.last_request
+        assert req.params["omsId"] == OMS_ID
+        assert req.params["omsConnection"] == OMS_CONNECTION
+
+    @pytest.mark.anyio
+    async def test_delete_connection_success_false_when_missing(self):
+        t = AsyncCapturingTransport({})
+        client = make_client(t)
+        resp = await client.integration.delete_connection(OMS_CONNECTION)
+        assert resp.success is False
+
+    @pytest.mark.anyio
+    async def test_list_connections_sends_auth_header(self):
+        t = AsyncCapturingTransport({"omsConnectionInfos": [], "total": 0})
+        client = make_client(t, client_token="mytoken")
+        await client.integration.list_connections()
+        assert t.last_request.headers["clientToken"] == "mytoken"
 
 
 # ---------------------------------------------------------------------------
