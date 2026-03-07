@@ -11,6 +11,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.4.0] — 2026-03-07
+
+### Added
+
+- `client.reports.send_utilisation()` — sends a KM utilisation (marking) report (`POST /api/v3/utilisation?omsId=…`); signs request body with `X-Signature` when a signer is configured; supports `utilisation_type` (UTILISATION / RESORT / SPLITMARK / DIVISIONMARK) and product-group-specific `attributes`; returns `SendUtilisationResponse` with `oms_id` and `report_id`
+- `client.reports.get_report_status()` — polls report processing status (`GET /api/v3/report/info`); returns `ReportStatusResponse` with `report_status` (SUCCESS / REJECTED / …) and optional `error_reason`
+- `client.reports.get_receipt()` — retrieves receipts by document ID (`GET /api/v3/receipts/receipt`); works with Квитирование 2.0 receipts for orders, reports, and KM blocks; returns raw list of receipt dicts
+- `client.reports.search_receipts()` — searches receipts by filters (`POST /api/v3/receipts/receipt/search`); supports date ranges, resultDocIds, orderIds, workflowTypes, productGroups, and more; pagination via `limit` / `skip`; returns `SearchReceiptsResponse` with `total_count` and `results`
+- `ReportsApi` class and models (`SendUtilisationResponse`, `ReportStatusResponse`, `ReceiptFilter`, `SearchReceiptsResponse`) exported from the top-level `suz_sdk` package
+- `SuzClient.reports` attribute — wired automatically with the main transport, auth headers, and signer
+- 45 new unit tests covering all four report methods, request structure, signing, filter serialisation, optional parameters, and client wiring
+
+---
+
 ## [0.3.0] — 2026-03-06
 
 ### Added
@@ -64,6 +78,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - English and Russian documentation (`README.md`, `README.ru.md`)
 - `CONTRIBUTING.md` — contribution guide
 
-[Unreleased]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/stemirkhan/suz-sdk-python/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/stemirkhan/suz-sdk-python/releases/tag/v0.1.0

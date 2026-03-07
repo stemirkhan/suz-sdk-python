@@ -35,6 +35,13 @@ from suz_sdk.api.orders import (
     OrderProduct,
     OrdersApi,
 )
+from suz_sdk.api.reports import (
+    ReceiptFilter,
+    ReportStatusResponse,
+    ReportsApi,
+    SearchReceiptsResponse,
+    SendUtilisationResponse,
+)
 from suz_sdk.auth.auth_api import AuthApi
 from suz_sdk.auth.token_manager import TokenManager
 from suz_sdk.auth.true_api import TrueApiAuth
@@ -82,8 +89,15 @@ __all__ = [
     "CloseOrderResponse",
     # Request models
     "OrderProduct",
-    # API namespaces (orders)
+    # Response models (reports)
+    "SendUtilisationResponse",
+    "ReportStatusResponse",
+    "SearchReceiptsResponse",
+    # Request models (reports)
+    "ReceiptFilter",
+    # API namespaces
     "OrdersApi",
+    "ReportsApi",
     # Auth
     "TrueApiAuth",
     "TokenManager",
@@ -92,4 +106,4 @@ __all__ = [
     "IntegrationApi",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
