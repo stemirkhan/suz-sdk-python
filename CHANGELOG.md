@@ -11,6 +11,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [0.7.0] — 2026-03-07
+
+### Added
+
+- `RetryConfig` — dataclass for configuring automatic HTTP retries: `max_retries` (default 3), `backoff_factor` (default 0.5 s), `retry_statuses` (default `{500, 502, 503, 504}`), `retry_on_network_errors` (default `True`)
+- Both `HttpxTransport` and `AsyncHttpxTransport` accept an optional `retry: RetryConfig` parameter; retries use exponential backoff (`backoff_factor * 2^attempt`) with `WARNING`-level log on each retry
+- `RetryConfig` exported from the top-level `suz_sdk` package
+- `py.typed` marker file — package is now PEP 561 compliant; mypy/pyright can verify consumer code against the SDK's type annotations
+- `anyio[asyncio]` and `pytest-anyio` added to dev dependencies
+- Upgraded token-refresh log level from `DEBUG` to `INFO` in `TokenManager` and `AsyncTokenManager`
+- 24 new tests covering `RetryConfig` defaults, 5xx retry, network-error retry, backoff timing, no-retry on 4xx, async retry; total: 260 tests, all passing
+
+---
+
 ## [0.6.0] — 2026-03-07
 
 ### Added

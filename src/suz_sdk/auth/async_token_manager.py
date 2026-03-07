@@ -55,9 +55,9 @@ class AsyncTokenManager:
         return remaining < _PRE_REFRESH_SECONDS
 
     async def _do_refresh(self) -> None:
-        logger.debug("Refreshing clientToken via True API (async)")
+        logger.info("Refreshing clientToken via True API (async)")
         self._token = await self._auth.fetch_token()
         self._expires_at = datetime.now(timezone.utc) + timedelta(
             hours=_TRUE_API_TOKEN_TTL_HOURS
         )
-        logger.debug("clientToken refreshed; expires at %s", self._expires_at.isoformat())
+        logger.info("clientToken refreshed; expires at %s", self._expires_at.isoformat())

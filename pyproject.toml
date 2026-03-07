@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "suz-sdk"
-version = "0.6.0"
+version = "0.7.0"
 description = "Python SDK for СУЗ API 3.0 (СУЗ-Облако 4.0)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -51,6 +51,8 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-httpx>=0.30.0",
+    "anyio[asyncio]>=4.0.0",
+    "pytest-anyio>=0.0.0",
     "mypy>=1.9.0",
     "ruff>=0.4.0",
 ]

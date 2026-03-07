@@ -4,6 +4,7 @@ This is the default, production-ready transport.  It handles:
 - Base URL construction
 - Request serialization and response deserialization
 - Timeout enforcement
+- Automatic retries with exponential backoff (via RetryConfig)
 - Structured logging (method, path, status, elapsed) without leaking secrets
 - HTTP error → SDK exception mapping per §6.2 of the API specification
 
@@ -30,6 +31,7 @@ from suz_sdk.exceptions import (
     SuzValidationError,
 )
 from suz_sdk.transport.base import Request, Response
+from suz_sdk.transport.retry import RetryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,10 @@ class HttpxTransport:
         verify_ssl: Whether to verify TLS certificates.  Set to False only
                     in controlled test environments.
         user_agent: Value for the User-Agent header.
+        retry:      Optional retry configuration.  When provided, failed
+                    requests are automatically retried according to the policy.
+                    Pass ``RetryConfig()`` to use the defaults (3 retries,
+                    exponential backoff, retry on 5xx and network errors).
     """
 
     def __init__(
@@ -59,9 +65,11 @@ class HttpxTransport:
         timeout: float = 30.0,
         verify_ssl: bool = True,
         user_agent: str = _DEFAULT_USER_AGENT,
+        retry: RetryConfig | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._user_agent = user_agent
+        self._retry = retry
         self._client = httpx.Client(
             base_url=self._base_url,
             timeout=timeout,
@@ -71,12 +79,11 @@ class HttpxTransport:
     def request(self, req: Request) -> Response:
         """Execute an HTTP request and return a parsed Response.
 
+        When a ``RetryConfig`` is configured, automatically retries on the
+        specified status codes and/or network errors with exponential backoff.
+
         Logs method, path, status code, and elapsed time.
         Never logs header values (tokens, signatures).
-
-        When ``req.raw_body`` is set, sends it verbatim as the request body
-        (the caller is responsible for setting Content-Type).  Otherwise
-        JSON-encodes ``req.json_body``.
 
         Args:
             req: The request descriptor.
@@ -92,8 +99,70 @@ class HttpxTransport:
             SuzSignatureError:  HTTP 413.
             SuzApiError:        Any other non-2xx response.
         """
-        # Merge transport-level default headers with caller headers.
-        # Caller headers take precedence.
+        max_attempts = 1 + (self._retry.max_retries if self._retry else 0)
+        last_resp: Response | None = None
+
+        for attempt in range(max_attempts):
+            try:
+                resp = self._send(req)
+                last_resp = resp
+            except (SuzTimeoutError, SuzTransportError) as exc:
+                if (
+                    self._retry
+                    and self._retry.retry_on_network_errors
+                    and attempt < max_attempts - 1
+                ):
+                    wait = self._retry.backoff_factor * (2 ** attempt)
+                    logger.warning(
+                        "Retry %d/%d for %s %s after network error: %s, sleeping %.2fs",
+                        attempt + 1,
+                        self._retry.max_retries,
+                        req.method,
+                        req.path,
+                        exc,
+                        wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                raise
+
+            if (
+                self._retry
+                and resp.status_code in self._retry.retry_statuses
+                and attempt < max_attempts - 1
+            ):
+                wait = self._retry.backoff_factor * (2 ** attempt)
+                logger.warning(
+                    "Retry %d/%d for %s %s after HTTP %d, sleeping %.2fs",
+                    attempt + 1,
+                    self._retry.max_retries,
+                    req.method,
+                    req.path,
+                    resp.status_code,
+                    wait,
+                )
+                time.sleep(wait)
+                continue
+
+            self._raise_for_status(resp, req)
+            return resp
+
+        # All retries exhausted — raise from the last response.
+        assert last_resp is not None
+        self._raise_for_status(last_resp, req)
+        return last_resp  # unreachable; _raise_for_status always raises here
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _send(self, req: Request) -> Response:
+        """Execute a single HTTP attempt and return the raw Response.
+
+        Does NOT call ``_raise_for_status``; the caller decides whether to
+        retry or raise.  Always raises ``SuzTimeoutError`` / ``SuzTransportError``
+        on network-level failures.
+        """
         headers = {
             "User-Agent": self._user_agent,
             "Accept": "application/json",
@@ -125,20 +194,18 @@ class HttpxTransport:
                 f"Request timed out: {req.method} {req.path}"
             ) from exc
         except httpx.RequestError as exc:
-            raise SuzTransportError(f"Network error on {req.method} {req.path}: {exc}") from exc
+            raise SuzTransportError(
+                f"Network error on {req.method} {req.path}: {exc}"
+            ) from exc
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.debug("← %d %s (%dms)", raw.status_code, req.path, elapsed_ms)
 
-        body = self._parse_body(raw)
-        resp = Response(
+        return Response(
             status_code=raw.status_code,
             headers=dict(raw.headers),
-            body=body,
+            body=self._parse_body(raw),
         )
-
-        self._raise_for_status(resp, req)
-        return resp
 
     def _parse_body(self, raw: httpx.Response) -> Any:
         """Parse the response body as JSON; fall back to plain text."""

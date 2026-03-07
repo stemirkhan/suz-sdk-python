@@ -99,9 +99,9 @@ class TokenManager:
 
         Must be called with ``_lock`` held.
         """
-        logger.debug("Refreshing clientToken via True API")
+        logger.info("Refreshing clientToken via True API")
         self._token = self._auth.fetch_token()
         self._expires_at = datetime.now(timezone.utc) + timedelta(
             hours=_TRUE_API_TOKEN_TTL_HOURS
         )
-        logger.debug("clientToken refreshed; expires at %s", self._expires_at.isoformat())
+        logger.info("clientToken refreshed; expires at %s", self._expires_at.isoformat())

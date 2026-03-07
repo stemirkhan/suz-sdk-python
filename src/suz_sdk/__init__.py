@@ -55,6 +55,7 @@ from suz_sdk.auth.token_manager import TokenManager
 from suz_sdk.auth.true_api import TrueApiAuth
 from suz_sdk.client import SuzClient
 from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+from suz_sdk.transport.retry import RetryConfig
 from suz_sdk.config import Environment, SuzConfig
 from suz_sdk.exceptions import (
     SuzApiError,
@@ -128,6 +129,8 @@ __all__ = [
     "AsyncAuthApi",
     # Async transport
     "AsyncHttpxTransport",
+    # Transport config
+    "RetryConfig",
 ]
 
 __version__ = "0.6.0"

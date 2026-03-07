@@ -1,5 +1,6 @@
 """Async httpx-based transport for the SUZ SDK."""
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -15,6 +16,7 @@ from suz_sdk.exceptions import (
     SuzValidationError,
 )
 from suz_sdk.transport.base import Request, Response
+from suz_sdk.transport.retry import RetryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,9 @@ class AsyncHttpxTransport:
         timeout:    Request timeout in seconds.
         verify_ssl: Whether to verify TLS certificates.
         user_agent: Value for the User-Agent header.
+        retry:      Optional retry configuration.  When provided, failed
+                    requests are automatically retried.  Pass
+                    ``RetryConfig()`` to use the defaults.
     """
 
     def __init__(
@@ -40,9 +45,11 @@ class AsyncHttpxTransport:
         timeout: float = 30.0,
         verify_ssl: bool = True,
         user_agent: str = _DEFAULT_USER_AGENT,
+        retry: RetryConfig | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._user_agent = user_agent
+        self._retry = retry
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=timeout,
@@ -50,7 +57,64 @@ class AsyncHttpxTransport:
         )
 
     async def request(self, req: Request) -> Response:
-        """Execute an async HTTP request and return a parsed Response."""
+        """Execute an async HTTP request and return a parsed Response.
+
+        Supports automatic retries when a ``RetryConfig`` is set.
+        """
+        max_attempts = 1 + (self._retry.max_retries if self._retry else 0)
+        last_resp: Response | None = None
+
+        for attempt in range(max_attempts):
+            try:
+                resp = await self._send(req)
+                last_resp = resp
+            except (SuzTimeoutError, SuzTransportError) as exc:
+                if (
+                    self._retry
+                    and self._retry.retry_on_network_errors
+                    and attempt < max_attempts - 1
+                ):
+                    wait = self._retry.backoff_factor * (2 ** attempt)
+                    logger.warning(
+                        "Retry %d/%d for %s %s after network error: %s, sleeping %.2fs",
+                        attempt + 1,
+                        self._retry.max_retries,
+                        req.method,
+                        req.path,
+                        exc,
+                        wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                raise
+
+            if (
+                self._retry
+                and resp.status_code in self._retry.retry_statuses
+                and attempt < max_attempts - 1
+            ):
+                wait = self._retry.backoff_factor * (2 ** attempt)
+                logger.warning(
+                    "Retry %d/%d for %s %s after HTTP %d, sleeping %.2fs",
+                    attempt + 1,
+                    self._retry.max_retries,
+                    req.method,
+                    req.path,
+                    resp.status_code,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+                continue
+
+            self._raise_for_status(resp, req)
+            return resp
+
+        assert last_resp is not None
+        self._raise_for_status(last_resp, req)
+        return last_resp  # unreachable
+
+    async def _send(self, req: Request) -> Response:
+        """Execute a single async HTTP attempt and return the raw Response."""
         headers = {
             "User-Agent": self._user_agent,
             "Accept": "application/json",
@@ -89,14 +153,11 @@ class AsyncHttpxTransport:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.debug("← %d %s (%dms)", raw.status_code, req.path, elapsed_ms)
 
-        body = self._parse_body(raw)
-        resp = Response(
+        return Response(
             status_code=raw.status_code,
             headers=dict(raw.headers),
-            body=body,
+            body=self._parse_body(raw),
         )
-        self._raise_for_status(resp, req)
-        return resp
 
     def _parse_body(self, raw: httpx.Response) -> Any:
         if not raw.content:
