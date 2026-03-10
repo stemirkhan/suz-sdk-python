@@ -213,8 +213,8 @@ class TestSuzClientIntegrationWiring:
     """Smoke-test that SuzClient wires IntegrationApi correctly."""
 
     def test_client_integration_is_available(self) -> None:
-        from suz_sdk.client import SuzClient
         from suz_sdk.api.integration import IntegrationApi
+        from suz_sdk.client import SuzClient
 
         client = SuzClient(oms_id=_OMS_ID, registration_key=_REG_KEY)
         assert isinstance(client.integration, IntegrationApi)

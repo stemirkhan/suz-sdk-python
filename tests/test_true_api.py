@@ -155,6 +155,7 @@ class TestAuthApiIntegration:
 
     def test_authenticate_calls_token_manager(self) -> None:
         from unittest.mock import MagicMock
+
         from suz_sdk.auth.auth_api import AuthApi
         from suz_sdk.auth.token_manager import TokenManager
 

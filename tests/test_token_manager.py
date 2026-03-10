@@ -4,12 +4,12 @@ TokenManager is tested with a mock TrueApiAuth to avoid network calls.
 """
 
 import threading
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 
-from suz_sdk.auth.token_manager import TokenManager, _PRE_REFRESH_SECONDS, _TRUE_API_TOKEN_TTL_HOURS
+from suz_sdk.auth.token_manager import _PRE_REFRESH_SECONDS, _TRUE_API_TOKEN_TTL_HOURS, TokenManager
 from suz_sdk.exceptions import SuzAuthError
 
 
@@ -53,7 +53,7 @@ class TestGetToken:
         manager, mock_auth = _make_manager("fresh-tok")
         manager._token = "stale-tok"
         # Set expires_at just inside the pre-refresh window.
-        manager._expires_at = datetime.now(timezone.utc) + timedelta(
+        manager._expires_at = datetime.now(UTC) + timedelta(
             seconds=_PRE_REFRESH_SECONDS - 10
         )
         token = manager.get_token()
@@ -63,16 +63,16 @@ class TestGetToken:
     def test_does_not_refresh_when_token_has_plenty_of_time(self) -> None:
         manager, mock_auth = _make_manager("new-tok")
         manager._token = "good-tok"
-        manager._expires_at = datetime.now(timezone.utc) + timedelta(hours=5)
+        manager._expires_at = datetime.now(UTC) + timedelta(hours=5)
         token = manager.get_token()
         assert token == "good-tok"
         mock_auth.fetch_token.assert_not_called()
 
     def test_sets_expiry_after_refresh(self) -> None:
         manager, _ = _make_manager()
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         manager.get_token()
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         expected_ttl = timedelta(hours=_TRUE_API_TOKEN_TTL_HOURS)
         assert manager._expires_at is not None

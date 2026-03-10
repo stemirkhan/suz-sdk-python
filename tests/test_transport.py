@@ -79,7 +79,10 @@ class TestErrorMapping:
         httpx_mock.add_response(
             method="GET",
             url=f"{BASE_URL}/api/v3/ping?omsId=abc",
-            json={"globalErrors": [{"error": "Unauthorized", "errorCode": "401"}], "success": False},
+            json={
+                "globalErrors": [{"error": "Unauthorized", "errorCode": "401"}],
+                "success": False,
+            },
             status_code=401,
         )
         req = Request(method="GET", path="/api/v3/ping", params={"omsId": "abc"})
@@ -90,7 +93,10 @@ class TestErrorMapping:
         httpx_mock.add_response(
             method="POST",
             url=f"{BASE_URL}/api/v3/orders",
-            json={"globalErrors": [{"error": "Attached signature", "errorCode": "413"}], "success": False},
+            json={
+                "globalErrors": [{"error": "Attached signature", "errorCode": "413"}],
+                "success": False,
+            },
             status_code=413,
         )
         req = Request(method="POST", path="/api/v3/orders", json_body={"key": "val"})
@@ -101,7 +107,10 @@ class TestErrorMapping:
         httpx_mock.add_response(
             method="GET",
             url=f"{BASE_URL}/api/v3/ping?omsId=abc",
-            json={"globalErrors": [{"error": "Server error", "errorCode": "500"}], "success": False},
+            json={
+                "globalErrors": [{"error": "Server error", "errorCode": "500"}],
+                "success": False,
+            },
             status_code=500,
         )
         req = Request(method="GET", path="/api/v3/ping", params={"omsId": "abc"})

@@ -10,7 +10,6 @@ import pytest
 from suz_sdk.exceptions import SuzSigningError
 from suz_sdk.signing.cryptopro import CryptoProSigner
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

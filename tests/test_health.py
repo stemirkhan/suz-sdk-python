@@ -8,7 +8,7 @@ separately in test_transport.py.
 import pytest
 
 from suz_sdk.api.health import HealthApi, PingResponse
-from suz_sdk.exceptions import SuzAuthError, SuzApiError
+from suz_sdk.exceptions import SuzApiError, SuzAuthError
 from suz_sdk.transport.base import Request, Response
 
 

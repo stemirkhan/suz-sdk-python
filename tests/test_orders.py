@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from suz_sdk.api.orders import (
     BufferInfo,
     CloseOrderResponse,
@@ -14,7 +12,6 @@ from suz_sdk.api.orders import (
 )
 from suz_sdk.signing.noop import NoopSigner
 from suz_sdk.transport.base import Request, Response
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures

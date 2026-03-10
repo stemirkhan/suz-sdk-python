@@ -1,6 +1,5 @@
 """Tests for new IntegrationApi methods: list_connections, delete_connection."""
 
-import pytest
 
 from suz_sdk.api.integration import (
     ConnectionInfo,
@@ -9,7 +8,6 @@ from suz_sdk.api.integration import (
     ListConnectionsResponse,
 )
 from suz_sdk.transport.base import Request, Response
-
 
 _OMS_ID = "cdf12109-10d3-11e6-8b6f-0050569977a1"
 _OMS_CONNECTION = "aabb1234-5678-90ab-cdef-1234567890ab"

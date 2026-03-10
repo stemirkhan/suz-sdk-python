@@ -9,7 +9,11 @@ from suz_sdk.api.async_integration import AsyncIntegrationApi
 from suz_sdk.api.async_orders import AsyncOrdersApi
 from suz_sdk.api.async_reports import AsyncReportsApi
 from suz_sdk.api.health import PingResponse
-from suz_sdk.api.integration import ConnectionInfo, DeleteConnectionResponse, ListConnectionsResponse
+from suz_sdk.api.integration import (
+    ConnectionInfo,
+    DeleteConnectionResponse,
+    ListConnectionsResponse,
+)
 from suz_sdk.api.orders import (
     Block,
     BufferInfo,
@@ -128,7 +132,7 @@ class TestAsyncContextManager:
     @pytest.mark.anyio
     async def test_aexit_calls_aclose(self):
         closed = []
-        t = AsyncCapturingTransport({})
+        AsyncCapturingTransport({})
 
         class TrackingTransport(AsyncCapturingTransport):
             async def aclose(self):
@@ -637,7 +641,6 @@ class TestAsyncTrueApiAuth:
                 calls.append(req)
                 return responses.pop(0)
 
-        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
 
         auth = AsyncTrueApiAuth(
             oms_connection="conn-1",

@@ -5,9 +5,9 @@ from unittest.mock import patch
 import pytest
 
 from suz_sdk.exceptions import SuzApiError, SuzTimeoutError, SuzTransportError
+from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
 from suz_sdk.transport.base import Request
 from suz_sdk.transport.httpx_transport import HttpxTransport
-from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
 from suz_sdk.transport.retry import RetryConfig
 
 BASE_URL = "https://suz-retry-test.example.com"

@@ -2,7 +2,6 @@
 get_product_info, search_orders.
 """
 
-import pytest
 
 from suz_sdk.api.orders import (
     Block,
@@ -11,12 +10,11 @@ from suz_sdk.api.orders import (
     GetCodesResponse,
     ListOrdersResponse,
     OrderFilter,
-    OrderSummaryInfo,
     OrdersApi,
+    OrderSummaryInfo,
     SearchOrdersResponse,
 )
 from suz_sdk.transport.base import Request, Response
-
 
 _OMS_ID = "cdf12109-10d3-11e6-8b6f-0050569977a1"
 _ORDER_ID = "b024ae09-ef7c-449e-b461-05d8eb116c79"
