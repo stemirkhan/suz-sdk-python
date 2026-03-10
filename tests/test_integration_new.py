@@ -41,6 +41,18 @@ class StubTransport:
         return self._response
 
 
+class SequenceStubTransport:
+    def __init__(self, responses: list[Response]) -> None:
+        self._responses = responses
+        self.requests: list[Request] = []
+
+    def request(self, req: Request) -> Response:
+        self.requests.append(req)
+        index = len(self.requests) - 1
+        assert index < len(self._responses)
+        return self._responses[index]
+
+
 def _make_api(transport: StubTransport) -> IntegrationApi:
     return IntegrationApi(
         transport=transport,
@@ -240,3 +252,58 @@ class TestWithoutAuthHeaders:
         result = api.delete_connection(_OMS_CONNECTION)
 
         assert result.success is True
+
+
+class TestIterConnections:
+    def test_iterates_pages_and_advances_offset(self) -> None:
+        transport = SequenceStubTransport(
+            responses=[
+                Response(
+                    status_code=200,
+                    headers={},
+                    body={
+                        "omsConnectionInfos": [
+                            {**_CONNECTION_INFO, "omsConnection": "conn-1"},
+                            {**_CONNECTION_INFO, "omsConnection": "conn-2"},
+                        ],
+                        "total": 3,
+                    },
+                ),
+                Response(
+                    status_code=200,
+                    headers={},
+                    body={
+                        "omsConnectionInfos": [
+                            {**_CONNECTION_INFO, "omsConnection": "conn-3"},
+                        ],
+                        "total": 3,
+                    },
+                ),
+            ]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_connections(page_size=2))
+
+        assert [item.oms_connection for item in result] == ["conn-1", "conn-2", "conn-3"]
+        assert len(transport.requests) == 2
+        assert transport.requests[0].params.get("limit") == "2"
+        assert transport.requests[0].params.get("offset") == "0"
+        assert transport.requests[1].params.get("offset") == "2"
+
+    def test_empty_result_stops_immediately(self) -> None:
+        transport = SequenceStubTransport(
+            responses=[
+                Response(
+                    status_code=200,
+                    headers={},
+                    body={"omsConnectionInfos": [], "total": 0},
+                )
+            ]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_connections(page_size=10))
+
+        assert result == []
+        assert len(transport.requests) == 1

@@ -20,7 +20,7 @@ Typical flow:
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -311,6 +311,19 @@ class OrdersApi:
             ],
         )
 
+    def iter_orders(self, *, page_size: int = 100) -> Iterator[OrderSummaryInfo]:
+        """Iterate over all orders using paginated search requests.
+
+        This helper provides memory-efficient iteration over order summaries.
+
+        Args:
+            page_size: Number of records requested per page.
+
+        Yields:
+            OrderSummaryInfo items across all available pages.
+        """
+        yield from self.iter_search_orders(filter=None, page_size=page_size)
+
     def get_codes(
         self,
         order_id: str,
@@ -503,6 +516,41 @@ class OrdersApi:
             total_count=body["totalCount"],
             results=[self._parse_order_summary_info(item) for item in body.get("results", [])],
         )
+
+    def iter_search_orders(
+        self,
+        filter: OrderFilter | None = None,
+        *,
+        page_size: int = 100,
+    ) -> Iterator[OrderSummaryInfo]:
+        """Iterate over all search results across pages.
+
+        Args:
+            filter: Optional OrderFilter criteria.
+            page_size: Number of records requested per page.
+
+        Yields:
+            OrderSummaryInfo items from all result pages.
+        """
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than 0")
+
+        page = 0
+        yielded = 0
+
+        while True:
+            resp = self.search_orders(filter=filter, limit=page_size, page=page)
+            batch = resp.results
+            if not batch:
+                return
+
+            yield from batch
+            yielded += len(batch)
+
+            if yielded >= resp.total_count or len(batch) < page_size:
+                return
+
+            page += 1
 
     def close(
         self,

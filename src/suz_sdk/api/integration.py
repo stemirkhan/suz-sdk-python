@@ -1,8 +1,8 @@
 """Integration registration API client (§9.2).
 
-Implements "Регистрация установки экземпляра интеграционного решения" —
-the method for registering an integration installation with СУЗ and
-obtaining an ``omsConnection`` UUID.
+Implements "Регистрация установки экземпляра интеграционного
+решения" — the method for registering an integration installation with СУЗ
+and obtaining an ``omsConnection`` UUID.
 
 API specification (§9.2.1, Table 360–364):
     Method:  POST
@@ -34,7 +34,7 @@ Notes:
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -239,6 +239,28 @@ class IntegrationApi:
             ],
             total=body["total"],
         )
+
+    def iter_connections(self, *, page_size: int = 100) -> Iterator[ConnectionInfo]:
+        """Iterate over all registered integration connections across pages."""
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than 0")
+
+        offset = 0
+        yielded = 0
+
+        while True:
+            resp = self.list_connections(limit=page_size, offset=offset)
+            batch = resp.oms_connection_infos
+            if not batch:
+                return
+
+            yield from batch
+            yielded += len(batch)
+
+            if yielded >= resp.total or len(batch) < page_size:
+                return
+
+            offset += page_size
 
     def delete_connection(self, oms_connection: str) -> DeleteConnectionResponse:
         """Delete a registered integration connection.

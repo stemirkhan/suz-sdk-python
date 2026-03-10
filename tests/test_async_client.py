@@ -59,6 +59,25 @@ class AsyncCapturingTransport:
         pass
 
 
+class AsyncSequenceTransport:
+    """Returns a predefined response sequence and captures all requests."""
+
+    def __init__(self, response_bodies: list[object]) -> None:
+        self.response_bodies = response_bodies
+        self.requests: list[Request] = []
+        self.last_request: Request | None = None
+
+    async def request(self, req: Request) -> Response:
+        self.requests.append(req)
+        self.last_request = req
+        index = len(self.requests) - 1
+        assert index < len(self.response_bodies)
+        return Response(status_code=200, headers={}, body=self.response_bodies[index])
+
+    async def aclose(self) -> None:
+        pass
+
+
 def make_client(transport, **kwargs) -> AsyncSuzClient:
     defaults = {"oms_id": OMS_ID, "client_token": "tok"}
     defaults.update(kwargs)
@@ -450,6 +469,94 @@ class TestAsyncOrdersApi:
         assert body["filter"]["orderStatuses"] == ["ACTIVE"]
         assert body["filter"]["orderIds"] == [ORDER_ID]
 
+    @pytest.mark.anyio
+    async def test_aiter_search_orders_paginates(self):
+        t = AsyncSequenceTransport(
+            [
+                {
+                    "totalCount": 3,
+                    "results": [
+                        {
+                            "orderId": "order-1",
+                            "orderStatus": "ACTIVE",
+                            "createdTimestamp": 1700000000000,
+                        },
+                        {
+                            "orderId": "order-2",
+                            "orderStatus": "ACTIVE",
+                            "createdTimestamp": 1700000000001,
+                        },
+                    ],
+                },
+                {
+                    "totalCount": 3,
+                    "results": [
+                        {
+                            "orderId": "order-3",
+                            "orderStatus": "ACTIVE",
+                            "createdTimestamp": 1700000000002,
+                        }
+                    ],
+                },
+            ]
+        )
+        client = make_client(t)
+
+        result = [item async for item in client.orders.aiter_search_orders(page_size=2)]
+
+        assert [item.order_id for item in result] == ["order-1", "order-2", "order-3"]
+        assert len(t.requests) == 2
+        first_body = t.requests[0].json_body
+        second_body = t.requests[1].json_body
+        assert first_body is not None
+        assert second_body is not None
+        assert first_body["limit"] == 2
+        assert first_body["page"] == 0
+        assert second_body["page"] == 1
+
+    @pytest.mark.anyio
+    async def test_aiter_search_orders_empty_result(self):
+        t = AsyncSequenceTransport([{"totalCount": 0, "results": []}])
+        client = make_client(t)
+
+        result = [item async for item in client.orders.aiter_search_orders(page_size=100)]
+
+        assert result == []
+        assert len(t.requests) == 1
+
+    @pytest.mark.anyio
+    async def test_aiter_orders_uses_paginated_search(self):
+        t = AsyncSequenceTransport(
+            [
+                {
+                    "totalCount": 2,
+                    "results": [
+                        {
+                            "orderId": "order-a",
+                            "orderStatus": "ACTIVE",
+                            "createdTimestamp": 1700000000000,
+                        }
+                    ],
+                },
+                {
+                    "totalCount": 2,
+                    "results": [
+                        {
+                            "orderId": "order-b",
+                            "orderStatus": "ACTIVE",
+                            "createdTimestamp": 1700000000001,
+                        }
+                    ],
+                },
+            ]
+        )
+        client = make_client(t)
+
+        result = [item async for item in client.orders.aiter_orders(page_size=1)]
+
+        assert [item.order_id for item in result] == ["order-a", "order-b"]
+        assert all(req.path == "/api/v3/orders/search" for req in t.requests)
+
 
 # ---------------------------------------------------------------------------
 # AsyncReportsApi
@@ -606,6 +713,45 @@ class TestAsyncIntegrationApiNew:
         client = make_client(t, client_token="mytoken")
         await client.integration.list_connections()
         assert t.last_request.headers["clientToken"] == "mytoken"
+
+    @pytest.mark.anyio
+    async def test_aiter_connections_paginates(self):
+        t = AsyncSequenceTransport(
+            [
+                {
+                    "omsConnectionInfos": [
+                        {**_CONN_INFO, "omsConnection": "conn-1"},
+                        {**_CONN_INFO, "omsConnection": "conn-2"},
+                    ],
+                    "total": 3,
+                },
+                {
+                    "omsConnectionInfos": [
+                        {**_CONN_INFO, "omsConnection": "conn-3"},
+                    ],
+                    "total": 3,
+                },
+            ]
+        )
+        client = make_client(t)
+
+        result = [item async for item in client.integration.aiter_connections(page_size=2)]
+
+        assert [item.oms_connection for item in result] == ["conn-1", "conn-2", "conn-3"]
+        assert len(t.requests) == 2
+        assert t.requests[0].params["limit"] == "2"
+        assert t.requests[0].params["offset"] == "0"
+        assert t.requests[1].params["offset"] == "2"
+
+    @pytest.mark.anyio
+    async def test_aiter_connections_empty_result(self):
+        t = AsyncSequenceTransport([{"omsConnectionInfos": [], "total": 0}])
+        client = make_client(t)
+
+        result = [item async for item in client.integration.aiter_connections(page_size=10)]
+
+        assert result == []
+        assert len(t.requests) == 1
 
 
 # ---------------------------------------------------------------------------

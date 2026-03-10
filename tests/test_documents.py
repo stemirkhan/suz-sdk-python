@@ -79,6 +79,37 @@ class AsyncStubTransport:
         pass
 
 
+class SequenceStubTransport:
+    """Returns a predefined response sequence and captures all requests."""
+
+    def __init__(self, responses: list[Response]) -> None:
+        self._responses = responses
+        self.requests: list[Request] = []
+
+    def request(self, req: Request) -> Response:
+        self.requests.append(req)
+        index = len(self.requests) - 1
+        assert index < len(self._responses)
+        return self._responses[index]
+
+
+class AsyncSequenceStubTransport:
+    """Async version of SequenceStubTransport."""
+
+    def __init__(self, responses: list[Response]) -> None:
+        self._responses = responses
+        self.requests: list[Request] = []
+
+    async def request(self, req: Request) -> Response:
+        self.requests.append(req)
+        index = len(self.requests) - 1
+        assert index < len(self._responses)
+        return self._responses[index]
+
+    async def aclose(self) -> None:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -246,6 +277,36 @@ class TestSearchDocuments:
         api = _make_api(transport)
         result = api.search_documents(_DOC_TYPE)
         assert result.results == []
+
+
+class TestIterDocuments:
+    def test_iterates_pages_and_advances_skip(self) -> None:
+        transport = SequenceStubTransport(
+            responses=[
+                _ok({"totalCount": 3, "results": [{"docId": "d1"}, {"docId": "d2"}]}),
+                _ok({"totalCount": 3, "results": [{"docId": "d3"}]}),
+            ]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_documents(_DOC_TYPE, page_size=2))
+
+        assert [item["docId"] for item in result] == ["d1", "d2", "d3"]
+        assert len(transport.requests) == 2
+        assert transport.requests[0].params.get("limit") == "2"
+        assert transport.requests[0].params.get("skip") == "0"
+        assert transport.requests[1].params.get("skip") == "2"
+
+    def test_empty_result_stops_immediately(self) -> None:
+        transport = SequenceStubTransport(
+            responses=[_ok({"totalCount": 0, "results": []})]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_documents(_DOC_TYPE, page_size=50))
+
+        assert result == []
+        assert len(transport.requests) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +617,40 @@ class TestAsyncSearchDocuments:
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
+
+
+class TestAsyncIterDocuments:
+    @pytest.mark.anyio
+    async def test_iterates_pages_and_advances_skip(self) -> None:
+        transport = AsyncSequenceStubTransport(
+            responses=[
+                _ok({"totalCount": 3, "results": [{"docId": "d1"}, {"docId": "d2"}]}),
+                _ok({"totalCount": 3, "results": [{"docId": "d3"}]}),
+            ]
+        )
+        api = _make_async_api(transport)  # type: ignore[arg-type]
+
+        result: list[dict[str, str]] = []
+        async for item in api.aiter_documents(_DOC_TYPE, page_size=2):
+            result.append(item)
+
+        assert [item["docId"] for item in result] == ["d1", "d2", "d3"]
+        assert len(transport.requests) == 2
+        assert transport.requests[0].params.get("limit") == "2"
+        assert transport.requests[0].params.get("skip") == "0"
+        assert transport.requests[1].params.get("skip") == "2"
+
+    @pytest.mark.anyio
+    async def test_empty_result_stops_immediately(self) -> None:
+        transport = AsyncSequenceStubTransport(
+            responses=[_ok({"totalCount": 0, "results": []})]
+        )
+        api = _make_async_api(transport)  # type: ignore[arg-type]
+
+        result = [item async for item in api.aiter_documents(_DOC_TYPE, page_size=25)]
+
+        assert result == []
+        assert len(transport.requests) == 1
 
 
 # ---------------------------------------------------------------------------
