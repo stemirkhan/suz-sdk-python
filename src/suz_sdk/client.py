@@ -41,6 +41,7 @@ from typing import Any
 from suz_sdk.api.health import HealthApi
 from suz_sdk.api.integration import IntegrationApi
 from suz_sdk.api.orders import OrdersApi
+from suz_sdk.api.reference import ReferenceApi
 from suz_sdk.api.reports import ReportsApi
 from suz_sdk.auth.auth_api import AuthApi
 from suz_sdk.auth.token_manager import TokenManager
@@ -164,6 +165,11 @@ class SuzClient:
             oms_id=self._config.oms_id,
             get_auth_headers=self._auth_headers,
             signer=self._config.signer,
+        )
+        self.reference = ReferenceApi(
+            transport=self._transport,
+            oms_id=self._config.oms_id,
+            get_auth_headers=self._auth_headers,
         )
         self.auth = AuthApi(token_manager=self._token_manager)
 

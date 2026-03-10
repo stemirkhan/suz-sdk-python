@@ -51,6 +51,14 @@ from suz_sdk.api.orders import (
     OrderSummaryInfo,
     SearchOrdersResponse,
 )
+from suz_sdk.api.reference import (
+    AsyncReferenceApi,
+    ModResponse,
+    ProvidersResponse,
+    QualityCisListResponse,
+    QualityResponse,
+    ReferenceApi,
+)
 from suz_sdk.api.reports import (
     ReceiptFilter,
     ReportsApi,
@@ -137,10 +145,16 @@ __all__ = [
     "SearchReceiptsResponse",
     # Request models (reports)
     "ReceiptFilter",
+    # Response models (reference)
+    "ProvidersResponse",
+    "QualityResponse",
+    "QualityCisListResponse",
+    "ModResponse",
     # Sync API namespaces
     "OrdersApi",
     "ReportsApi",
     "IntegrationApi",
+    "ReferenceApi",
     # Sync auth
     "TrueApiAuth",
     "TokenManager",
@@ -150,6 +164,7 @@ __all__ = [
     "AsyncIntegrationApi",
     "AsyncOrdersApi",
     "AsyncReportsApi",
+    "AsyncReferenceApi",
     # Async auth
     "AsyncTrueApiAuth",
     "AsyncTokenManager",
@@ -160,4 +175,4 @@ __all__ = [
     "RetryConfig",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
