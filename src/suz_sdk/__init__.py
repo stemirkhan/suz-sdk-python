@@ -56,6 +56,9 @@ from suz_sdk.api.reports import (
     ReportsApi,
     ReportStatusResponse,
     SearchReceiptsResponse,
+    SendAggregationResponse,
+    SendDropoutResponse,
+    SendSurplusResponse,
     SendUtilisationResponse,
 )
 from suz_sdk.async_client import AsyncSuzClient
@@ -127,6 +130,9 @@ __all__ = [
     "OrderFilter",
     # Response models (reports)
     "SendUtilisationResponse",
+    "SendDropoutResponse",
+    "SendAggregationResponse",
+    "SendSurplusResponse",
     "ReportStatusResponse",
     "SearchReceiptsResponse",
     # Request models (reports)
@@ -154,4 +160,4 @@ __all__ = [
     "RetryConfig",
 ]
 
-__version__ = "0.9.0"
+__version__ = "1.0.0"

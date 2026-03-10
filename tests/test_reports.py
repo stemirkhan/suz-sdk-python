@@ -4,16 +4,19 @@ import json
 
 import pytest
 
+from suz_sdk.api.async_reports import AsyncReportsApi
 from suz_sdk.api.reports import (
     ReceiptFilter,
-    ReportStatusResponse,
     ReportsApi,
+    ReportStatusResponse,
     SearchReceiptsResponse,
+    SendAggregationResponse,
+    SendDropoutResponse,
+    SendSurplusResponse,
     SendUtilisationResponse,
 )
 from suz_sdk.signing.noop import NoopSigner
-from suz_sdk.transport.base import Request, Response
-
+from suz_sdk.transport.base import Request, Response  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -406,7 +409,11 @@ class TestSuzClientWiring:
 
         class FakeTransport:
             def request(self, req):
-                return Response(status_code=200, headers={}, body={"omsId": OMS_ID, "apiVersion": "3", "omsVersion": "4"})
+                return Response(
+                    status_code=200,
+                    headers={},
+                    body={"omsId": OMS_ID, "apiVersion": "3", "omsVersion": "4"},
+                )
 
         client = SuzClient(
             oms_id=OMS_ID,
@@ -447,3 +454,532 @@ class TestSuzClientWiring:
             transport=FakeTransport(),
         )
         assert client.reports._signer is signer
+
+
+# ---------------------------------------------------------------------------
+# Async helper
+# ---------------------------------------------------------------------------
+
+
+class AsyncCapturingTransport:
+    """Records the last request and returns a pre-configured async response."""
+
+    def __init__(self, response_body: object) -> None:
+        self.response_body = response_body
+        self.last_request: Request | None = None
+
+    async def request(self, req: Request) -> Response:
+        self.last_request = req
+        return Response(status_code=200, headers={}, body=self.response_body)
+
+    async def aclose(self) -> None:
+        pass
+
+
+def make_async_api(transport, signer=None):
+    return AsyncReportsApi(
+        transport=transport,
+        oms_id=OMS_ID,
+        get_auth_headers=lambda: _async_auth_headers(),
+        signer=signer,
+    )
+
+
+async def _async_auth_headers() -> dict:
+    return {"clientToken": "tok"}
+
+
+# ---------------------------------------------------------------------------
+# send_dropout (sync)
+# ---------------------------------------------------------------------------
+
+
+class TestSendDropout:
+    def test_returns_response(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        api = make_api(transport)
+        resp = api.send_dropout(
+            product_group="milk",
+            sntins=["010460200640730421CM7SJdpPjHqkF"],
+        )
+        assert isinstance(resp, SendDropoutResponse)
+        assert resp.oms_id == OMS_ID
+        assert resp.report_id == REPORT_ID
+
+    def test_request_method_and_path(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["sntin1"])
+        req = transport.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/dropout"
+
+    def test_oms_id_in_params(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["sntin1"])
+        assert transport.last_request.params["omsId"] == OMS_ID
+
+    def test_body_contains_product_group_and_sntins(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        sntins = ["code1", "code2"]
+        make_api(transport).send_dropout("shoes", sntins)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["productGroup"] == "shoes"
+        assert body["sntins"] == sntins
+
+    def test_optional_dropout_reason(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"], dropout_reason="DEFECT")
+        body = json.loads(transport.last_request.raw_body)
+        assert body["dropoutReason"] == "DEFECT"
+
+    def test_dropout_reason_omitted_when_none(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "dropoutReason" not in body
+
+    def test_optional_attributes(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        attrs = {"key": "value"}
+        make_api(transport).send_dropout("milk", ["s1"], attributes=attrs)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["attributes"] == attrs
+
+    def test_attributes_omitted_when_none(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "attributes" not in body
+
+    def test_content_type_header(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"])
+        assert transport.last_request.headers["Content-Type"] == "application/json"
+
+    def test_auth_header_injected(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"])
+        assert transport.last_request.headers["clientToken"] == "tok"
+
+    def test_signature_header_when_signer_present(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        make_api(transport, signer=signer).send_dropout("milk", ["s1"])
+        assert "X-Signature" in transport.last_request.headers
+
+    def test_no_signature_header_without_signer(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"])
+        assert "X-Signature" not in transport.last_request.headers
+
+    def test_signature_covers_raw_body(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        make_api(transport, signer=signer).send_dropout("milk", ["s1"])
+        req = transport.last_request
+        expected = signer.sign_bytes(req.raw_body)
+        assert req.headers["X-Signature"] == expected
+
+    def test_raw_body_is_bytes(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_dropout("milk", ["s1"])
+        assert isinstance(transport.last_request.raw_body, bytes)
+
+
+# ---------------------------------------------------------------------------
+# send_aggregation (sync)
+# ---------------------------------------------------------------------------
+
+
+class TestSendAggregation:
+    def test_returns_response(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        api = make_api(transport)
+        resp = api.send_aggregation(
+            product_group="milk",
+            sntins=["010460200640730421CM7SJdpPjHqkF"],
+        )
+        assert isinstance(resp, SendAggregationResponse)
+        assert resp.oms_id == OMS_ID
+        assert resp.report_id == REPORT_ID
+
+    def test_request_method_and_path(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["sntin1"])
+        req = transport.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/aggregation"
+
+    def test_oms_id_in_params(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["sntin1"])
+        assert transport.last_request.params["omsId"] == OMS_ID
+
+    def test_body_contains_product_group_and_sntins(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        sntins = ["code1", "code2"]
+        make_api(transport).send_aggregation("shoes", sntins)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["productGroup"] == "shoes"
+        assert body["sntins"] == sntins
+
+    def test_optional_aggregation_type(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"], aggregation_type="PALLET")
+        body = json.loads(transport.last_request.raw_body)
+        assert body["aggregationType"] == "PALLET"
+
+    def test_aggregation_type_omitted_when_none(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "aggregationType" not in body
+
+    def test_optional_attributes(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        attrs = {"key": "value"}
+        make_api(transport).send_aggregation("milk", ["s1"], attributes=attrs)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["attributes"] == attrs
+
+    def test_attributes_omitted_when_none(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "attributes" not in body
+
+    def test_content_type_header(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"])
+        assert transport.last_request.headers["Content-Type"] == "application/json"
+
+    def test_auth_header_injected(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"])
+        assert transport.last_request.headers["clientToken"] == "tok"
+
+    def test_signature_header_when_signer_present(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        make_api(transport, signer=signer).send_aggregation("milk", ["s1"])
+        assert "X-Signature" in transport.last_request.headers
+
+    def test_no_signature_header_without_signer(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"])
+        assert "X-Signature" not in transport.last_request.headers
+
+    def test_signature_covers_raw_body(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        make_api(transport, signer=signer).send_aggregation("milk", ["s1"])
+        req = transport.last_request
+        expected = signer.sign_bytes(req.raw_body)
+        assert req.headers["X-Signature"] == expected
+
+    def test_raw_body_is_bytes(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_aggregation("milk", ["s1"])
+        assert isinstance(transport.last_request.raw_body, bytes)
+
+
+# ---------------------------------------------------------------------------
+# send_surplus (sync)
+# ---------------------------------------------------------------------------
+
+
+class TestSendSurplus:
+    def test_returns_response(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        api = make_api(transport)
+        resp = api.send_surplus(
+            product_group="milk",
+            sntins=["010460200640730421CM7SJdpPjHqkF"],
+        )
+        assert isinstance(resp, SendSurplusResponse)
+        assert resp.oms_id == OMS_ID
+        assert resp.report_id == REPORT_ID
+
+    def test_request_method_and_path(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["sntin1"])
+        req = transport.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/surplus"
+
+    def test_oms_id_in_params(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["sntin1"])
+        assert transport.last_request.params["omsId"] == OMS_ID
+
+    def test_body_contains_product_group_and_sntins(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        sntins = ["code1", "code2"]
+        make_api(transport).send_surplus("shoes", sntins)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["productGroup"] == "shoes"
+        assert body["sntins"] == sntins
+
+    def test_optional_attributes(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        attrs = {"key": "value"}
+        make_api(transport).send_surplus("milk", ["s1"], attributes=attrs)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["attributes"] == attrs
+
+    def test_attributes_omitted_when_none(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "attributes" not in body
+
+    def test_content_type_header(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["s1"])
+        assert transport.last_request.headers["Content-Type"] == "application/json"
+
+    def test_auth_header_injected(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["s1"])
+        assert transport.last_request.headers["clientToken"] == "tok"
+
+    def test_signature_header_when_signer_present(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        make_api(transport, signer=signer).send_surplus("milk", ["s1"])
+        assert "X-Signature" in transport.last_request.headers
+
+    def test_no_signature_header_without_signer(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["s1"])
+        assert "X-Signature" not in transport.last_request.headers
+
+    def test_signature_covers_raw_body(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        make_api(transport, signer=signer).send_surplus("milk", ["s1"])
+        req = transport.last_request
+        expected = signer.sign_bytes(req.raw_body)
+        assert req.headers["X-Signature"] == expected
+
+    def test_raw_body_is_bytes(self):
+        transport = CapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        make_api(transport).send_surplus("milk", ["s1"])
+        assert isinstance(transport.last_request.raw_body, bytes)
+
+
+# ---------------------------------------------------------------------------
+# send_dropout (async)
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncSendDropout:
+    @pytest.mark.anyio
+    async def test_returns_response(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        api = make_async_api(transport)
+        resp = await api.send_dropout(product_group="milk", sntins=["s1"])
+        assert isinstance(resp, SendDropoutResponse)
+        assert resp.oms_id == OMS_ID
+        assert resp.report_id == REPORT_ID
+
+    @pytest.mark.anyio
+    async def test_request_method_and_path(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_dropout("milk", ["s1"])
+        req = transport.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/dropout"
+
+    @pytest.mark.anyio
+    async def test_oms_id_in_params(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_dropout("milk", ["s1"])
+        assert transport.last_request.params["omsId"] == OMS_ID
+
+    @pytest.mark.anyio
+    async def test_body_contains_product_group_and_sntins(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        sntins = ["code1", "code2"]
+        await make_async_api(transport).send_dropout("shoes", sntins)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["productGroup"] == "shoes"
+        assert body["sntins"] == sntins
+
+    @pytest.mark.anyio
+    async def test_optional_dropout_reason(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_dropout("milk", ["s1"], dropout_reason="EXPIRED")
+        body = json.loads(transport.last_request.raw_body)
+        assert body["dropoutReason"] == "EXPIRED"
+
+    @pytest.mark.anyio
+    async def test_dropout_reason_omitted_when_none(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_dropout("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "dropoutReason" not in body
+
+    @pytest.mark.anyio
+    async def test_signature_header_when_signer_present(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        await make_async_api(transport, signer=signer).send_dropout("milk", ["s1"])
+        assert "X-Signature" in transport.last_request.headers
+
+    @pytest.mark.anyio
+    async def test_no_signature_header_without_signer(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_dropout("milk", ["s1"])
+        assert "X-Signature" not in transport.last_request.headers
+
+    @pytest.mark.anyio
+    async def test_raw_body_is_bytes(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_dropout("milk", ["s1"])
+        assert isinstance(transport.last_request.raw_body, bytes)
+
+
+# ---------------------------------------------------------------------------
+# send_aggregation (async)
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncSendAggregation:
+    @pytest.mark.anyio
+    async def test_returns_response(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        api = make_async_api(transport)
+        resp = await api.send_aggregation(product_group="milk", sntins=["s1"])
+        assert isinstance(resp, SendAggregationResponse)
+        assert resp.oms_id == OMS_ID
+        assert resp.report_id == REPORT_ID
+
+    @pytest.mark.anyio
+    async def test_request_method_and_path(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_aggregation("milk", ["s1"])
+        req = transport.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/aggregation"
+
+    @pytest.mark.anyio
+    async def test_oms_id_in_params(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_aggregation("milk", ["s1"])
+        assert transport.last_request.params["omsId"] == OMS_ID
+
+    @pytest.mark.anyio
+    async def test_body_contains_product_group_and_sntins(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        sntins = ["code1", "code2"]
+        await make_async_api(transport).send_aggregation("shoes", sntins)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["productGroup"] == "shoes"
+        assert body["sntins"] == sntins
+
+    @pytest.mark.anyio
+    async def test_optional_aggregation_type(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_aggregation("milk", ["s1"], aggregation_type="PALLET")
+        body = json.loads(transport.last_request.raw_body)
+        assert body["aggregationType"] == "PALLET"
+
+    @pytest.mark.anyio
+    async def test_aggregation_type_omitted_when_none(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_aggregation("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "aggregationType" not in body
+
+    @pytest.mark.anyio
+    async def test_signature_header_when_signer_present(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        await make_async_api(transport, signer=signer).send_aggregation("milk", ["s1"])
+        assert "X-Signature" in transport.last_request.headers
+
+    @pytest.mark.anyio
+    async def test_no_signature_header_without_signer(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_aggregation("milk", ["s1"])
+        assert "X-Signature" not in transport.last_request.headers
+
+    @pytest.mark.anyio
+    async def test_raw_body_is_bytes(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_aggregation("milk", ["s1"])
+        assert isinstance(transport.last_request.raw_body, bytes)
+
+
+# ---------------------------------------------------------------------------
+# send_surplus (async)
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncSendSurplus:
+    @pytest.mark.anyio
+    async def test_returns_response(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        api = make_async_api(transport)
+        resp = await api.send_surplus(product_group="milk", sntins=["s1"])
+        assert isinstance(resp, SendSurplusResponse)
+        assert resp.oms_id == OMS_ID
+        assert resp.report_id == REPORT_ID
+
+    @pytest.mark.anyio
+    async def test_request_method_and_path(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_surplus("milk", ["s1"])
+        req = transport.last_request
+        assert req.method == "POST"
+        assert req.path == "/api/v3/surplus"
+
+    @pytest.mark.anyio
+    async def test_oms_id_in_params(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_surplus("milk", ["s1"])
+        assert transport.last_request.params["omsId"] == OMS_ID
+
+    @pytest.mark.anyio
+    async def test_body_contains_product_group_and_sntins(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        sntins = ["code1", "code2"]
+        await make_async_api(transport).send_surplus("shoes", sntins)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["productGroup"] == "shoes"
+        assert body["sntins"] == sntins
+
+    @pytest.mark.anyio
+    async def test_optional_attributes(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        attrs = {"key": "value"}
+        await make_async_api(transport).send_surplus("milk", ["s1"], attributes=attrs)
+        body = json.loads(transport.last_request.raw_body)
+        assert body["attributes"] == attrs
+
+    @pytest.mark.anyio
+    async def test_attributes_omitted_when_none(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_surplus("milk", ["s1"])
+        body = json.loads(transport.last_request.raw_body)
+        assert "attributes" not in body
+
+    @pytest.mark.anyio
+    async def test_signature_header_when_signer_present(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        signer = NoopSigner()
+        await make_async_api(transport, signer=signer).send_surplus("milk", ["s1"])
+        assert "X-Signature" in transport.last_request.headers
+
+    @pytest.mark.anyio
+    async def test_no_signature_header_without_signer(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_surplus("milk", ["s1"])
+        assert "X-Signature" not in transport.last_request.headers
+
+    @pytest.mark.anyio
+    async def test_raw_body_is_bytes(self):
+        transport = AsyncCapturingTransport({"omsId": OMS_ID, "reportId": REPORT_ID})
+        await make_async_api(transport).send_surplus("milk", ["s1"])
+        assert isinstance(transport.last_request.raw_body, bytes)

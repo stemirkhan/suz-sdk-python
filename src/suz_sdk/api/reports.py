@@ -1,10 +1,13 @@
 """ReportsApi — KM utilisation reports and receipts (§4.4.11, §4.4.13, §4.4.18, §4.4.19).
 
 Endpoints implemented:
-    send_utilisation()   POST /api/v3/utilisation          §4.4.11
-    get_report_status()  GET  /api/v3/report/info          §4.4.13
-    get_receipt()        GET  /api/v3/receipts/receipt     §4.4.18
-    search_receipts()    POST /api/v3/receipts/receipt/search §4.4.19
+    send_utilisation()   POST /api/v3/utilisation              §4.4.11
+    send_dropout()       POST /api/v3/dropout
+    send_aggregation()   POST /api/v3/aggregation
+    send_surplus()       POST /api/v3/surplus
+    get_report_status()  GET  /api/v3/report/info              §4.4.13
+    get_receipt()        GET  /api/v3/receipts/receipt         §4.4.18
+    search_receipts()    POST /api/v3/receipts/receipt/search  §4.4.19
 
 Typical flow:
     1. report = client.reports.send_utilisation(product_group="milk", sntins=[...])
@@ -29,6 +32,30 @@ from suz_sdk.transport.base import BaseTransport, Request
 @dataclass
 class SendUtilisationResponse:
     """Response from POST /api/v3/utilisation (§4.4.11.2)."""
+
+    oms_id: str
+    report_id: str
+
+
+@dataclass
+class SendDropoutResponse:
+    """Response from POST /api/v3/dropout."""
+
+    oms_id: str
+    report_id: str
+
+
+@dataclass
+class SendAggregationResponse:
+    """Response from POST /api/v3/aggregation."""
+
+    oms_id: str
+    report_id: str
+
+
+@dataclass
+class SendSurplusResponse:
+    """Response from POST /api/v3/surplus."""
 
     oms_id: str
     report_id: str
@@ -170,6 +197,173 @@ class ReportsApi:
         resp = self._transport.request(req)
         body = resp.body
         return SendUtilisationResponse(
+            oms_id=body["omsId"],
+            report_id=body["reportId"],
+        )
+
+    def send_dropout(
+        self,
+        product_group: str,
+        sntins: list[str],
+        dropout_reason: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> SendDropoutResponse:
+        """Send a KM dropout (списание) report.
+
+        POST /api/v3/dropout?omsId={omsId}
+
+        The body is JSON-serialised, signed (X-Signature, detached CMS Base64)
+        when a signer is provided, then sent verbatim so the signature covers
+        the exact bytes on the wire.
+
+        Args:
+            product_group:  Product group code (e.g. "milk", "shoes").
+            sntins:         List of full KM codes including verification code.
+            dropout_reason: Optional. Reason for dropout.
+            attributes:     Optional product-group-specific attributes dict.
+
+        Returns:
+            SendDropoutResponse with oms_id and report_id.
+        """
+        body_dict: dict[str, Any] = {
+            "productGroup": product_group,
+            "sntins": sntins,
+        }
+        if dropout_reason is not None:
+            body_dict["dropoutReason"] = dropout_reason
+        if attributes is not None:
+            body_dict["attributes"] = attributes
+
+        raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **self._get_auth_headers(),
+        }
+        if self._signer is not None:
+            headers["X-Signature"] = self._signer.sign_bytes(raw_body)
+
+        req = Request(
+            method="POST",
+            path="/api/v3/dropout",
+            params={"omsId": self._oms_id},
+            headers=headers,
+            raw_body=raw_body,
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return SendDropoutResponse(
+            oms_id=body["omsId"],
+            report_id=body["reportId"],
+        )
+
+    def send_aggregation(
+        self,
+        product_group: str,
+        sntins: list[str],
+        aggregation_type: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> SendAggregationResponse:
+        """Send a KM aggregation (агрегация) report.
+
+        POST /api/v3/aggregation?omsId={omsId}
+
+        The body is JSON-serialised, signed (X-Signature, detached CMS Base64)
+        when a signer is provided, then sent verbatim so the signature covers
+        the exact bytes on the wire.
+
+        Args:
+            product_group:    Product group code (e.g. "milk", "shoes").
+            sntins:           List of full KM codes including verification code.
+            aggregation_type: Optional. Aggregation type code.
+            attributes:       Optional product-group-specific attributes dict.
+
+        Returns:
+            SendAggregationResponse with oms_id and report_id.
+        """
+        body_dict: dict[str, Any] = {
+            "productGroup": product_group,
+            "sntins": sntins,
+        }
+        if aggregation_type is not None:
+            body_dict["aggregationType"] = aggregation_type
+        if attributes is not None:
+            body_dict["attributes"] = attributes
+
+        raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **self._get_auth_headers(),
+        }
+        if self._signer is not None:
+            headers["X-Signature"] = self._signer.sign_bytes(raw_body)
+
+        req = Request(
+            method="POST",
+            path="/api/v3/aggregation",
+            params={"omsId": self._oms_id},
+            headers=headers,
+            raw_body=raw_body,
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return SendAggregationResponse(
+            oms_id=body["omsId"],
+            report_id=body["reportId"],
+        )
+
+    def send_surplus(
+        self,
+        product_group: str,
+        sntins: list[str],
+        attributes: dict[str, Any] | None = None,
+    ) -> SendSurplusResponse:
+        """Send a KM surplus (излишки) report.
+
+        POST /api/v3/surplus?omsId={omsId}
+
+        The body is JSON-serialised, signed (X-Signature, detached CMS Base64)
+        when a signer is provided, then sent verbatim so the signature covers
+        the exact bytes on the wire.
+
+        Args:
+            product_group: Product group code (e.g. "milk", "shoes").
+            sntins:        List of full KM codes including verification code.
+            attributes:    Optional product-group-specific attributes dict.
+
+        Returns:
+            SendSurplusResponse with oms_id and report_id.
+        """
+        body_dict: dict[str, Any] = {
+            "productGroup": product_group,
+            "sntins": sntins,
+        }
+        if attributes is not None:
+            body_dict["attributes"] = attributes
+
+        raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **self._get_auth_headers(),
+        }
+        if self._signer is not None:
+            headers["X-Signature"] = self._signer.sign_bytes(raw_body)
+
+        req = Request(
+            method="POST",
+            path="/api/v3/surplus",
+            params={"omsId": self._oms_id},
+            headers=headers,
+            raw_body=raw_body,
+        )
+        resp = self._transport.request(req)
+        body = resp.body
+        return SendSurplusResponse(
             oms_id=body["omsId"],
             report_id=body["reportId"],
         )

@@ -9,6 +9,9 @@ from suz_sdk.api.reports import (
     ReportsApi,
     ReportStatusResponse,
     SearchReceiptsResponse,
+    SendAggregationResponse,
+    SendDropoutResponse,
+    SendSurplusResponse,
     SendUtilisationResponse,
 )
 from suz_sdk.signing.base import BaseSigner
@@ -71,6 +74,129 @@ class AsyncReportsApi:
         resp = await transport.request(req)
         body = resp.body
         return SendUtilisationResponse(oms_id=body["omsId"], report_id=body["reportId"])
+
+    async def send_dropout(
+        self,
+        product_group: str,
+        sntins: list[str],
+        dropout_reason: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> SendDropoutResponse:
+        """Send a KM dropout report (POST /api/v3/dropout)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        body_dict: dict[str, Any] = {
+            "productGroup": product_group,
+            "sntins": sntins,
+        }
+        if dropout_reason is not None:
+            body_dict["dropoutReason"] = dropout_reason
+        if attributes is not None:
+            body_dict["attributes"] = attributes
+
+        raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **(await self._get_auth_headers()),
+        }
+        if self._signer is not None:
+            headers["X-Signature"] = self._signer.sign_bytes(raw_body)
+
+        req = Request(
+            method="POST",
+            path="/api/v3/dropout",
+            params={"omsId": self._oms_id},
+            headers=headers,
+            raw_body=raw_body,
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return SendDropoutResponse(oms_id=body["omsId"], report_id=body["reportId"])
+
+    async def send_aggregation(
+        self,
+        product_group: str,
+        sntins: list[str],
+        aggregation_type: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> SendAggregationResponse:
+        """Send a KM aggregation report (POST /api/v3/aggregation)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        body_dict: dict[str, Any] = {
+            "productGroup": product_group,
+            "sntins": sntins,
+        }
+        if aggregation_type is not None:
+            body_dict["aggregationType"] = aggregation_type
+        if attributes is not None:
+            body_dict["attributes"] = attributes
+
+        raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **(await self._get_auth_headers()),
+        }
+        if self._signer is not None:
+            headers["X-Signature"] = self._signer.sign_bytes(raw_body)
+
+        req = Request(
+            method="POST",
+            path="/api/v3/aggregation",
+            params={"omsId": self._oms_id},
+            headers=headers,
+            raw_body=raw_body,
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return SendAggregationResponse(oms_id=body["omsId"], report_id=body["reportId"])
+
+    async def send_surplus(
+        self,
+        product_group: str,
+        sntins: list[str],
+        attributes: dict[str, Any] | None = None,
+    ) -> SendSurplusResponse:
+        """Send a KM surplus report (POST /api/v3/surplus)."""
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        body_dict: dict[str, Any] = {
+            "productGroup": product_group,
+            "sntins": sntins,
+        }
+        if attributes is not None:
+            body_dict["attributes"] = attributes
+
+        raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **(await self._get_auth_headers()),
+        }
+        if self._signer is not None:
+            headers["X-Signature"] = self._signer.sign_bytes(raw_body)
+
+        req = Request(
+            method="POST",
+            path="/api/v3/surplus",
+            params={"omsId": self._oms_id},
+            headers=headers,
+            raw_body=raw_body,
+        )
+        resp = await transport.request(req)
+        body = resp.body
+        return SendSurplusResponse(oms_id=body["omsId"], report_id=body["reportId"])
 
     async def get_report_status(self, report_id: str) -> ReportStatusResponse:
         """Get report processing status (GET /api/v3/report/info)."""
