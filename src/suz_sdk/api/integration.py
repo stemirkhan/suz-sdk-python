@@ -90,6 +90,25 @@ class DeleteConnectionResponse:
     success: bool
 
 
+@dataclass
+class UotProfileResponse:
+    """Response from GET /api/v3/integration/profile.
+
+    Attributes:
+        oms_id:                  UUID of the OMS instance.
+        profile_status:          Status of the UOT profile (e.g. "ACTIVE").
+        product_groups:          List of product group codes assigned to this profile.
+        locked_product_groups:   List of product group codes that are locked.
+        blocked_product_groups:  List of product group codes that are blocked.
+    """
+
+    oms_id: str | None = None
+    profile_status: str | None = None
+    product_groups: list[str] = field(default_factory=list)
+    locked_product_groups: list[str] = field(default_factory=list)
+    blocked_product_groups: list[str] = field(default_factory=list)
+
+
 class IntegrationApi:
     """Client for the integration registration endpoint (§9.2).
 
@@ -248,6 +267,46 @@ class IntegrationApi:
         resp = self._transport.request(req)
         body: dict[str, Any] = resp.body
         return DeleteConnectionResponse(success=body.get("success", False))
+
+    def get_uot_profile(self, bearer_token: str) -> UotProfileResponse:
+        """Retrieve the UOT (Unique Object Traceability) profile for this OMS.
+
+        GET /api/v3/integration/profile
+
+        Uses ``Authorization: Bearer {bearer_token}`` — this is a separate JWT
+        issued by the UOT system and is passed explicitly rather than being
+        sourced from the usual ``clientToken`` auth flow.
+
+        Args:
+            bearer_token: JWT bearer token for the UOT profile endpoint.
+
+        Returns:
+            UotProfileResponse with profile status and product group lists.
+
+        Raises:
+            SuzAuthError:       Bearer token is missing or invalid.
+            SuzTransportError:  Network-level failure.
+            SuzTimeoutError:    Request timed out.
+            SuzApiError:        Unexpected server error.
+        """
+        req = Request(
+            method="GET",
+            path="/api/v3/integration/profile",
+            params={},
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {bearer_token}",
+            },
+        )
+        resp = self._transport.request(req)
+        body: dict[str, Any] = resp.body
+        return UotProfileResponse(
+            oms_id=body.get("omsId"),
+            profile_status=body.get("profileStatus"),
+            product_groups=body.get("productGroups") or [],
+            locked_product_groups=body.get("lockedProductGroups") or [],
+            blocked_product_groups=body.get("blockedProductGroups") or [],
+        )
 
     @staticmethod
     def _parse_connection_info(data: dict[str, Any]) -> ConnectionInfo:

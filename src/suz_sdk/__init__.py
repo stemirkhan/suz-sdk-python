@@ -29,6 +29,13 @@ from suz_sdk.api.async_health import AsyncHealthApi
 from suz_sdk.api.async_integration import AsyncIntegrationApi
 from suz_sdk.api.async_orders import AsyncOrdersApi
 from suz_sdk.api.async_reports import AsyncReportsApi
+from suz_sdk.api.documents import (
+    AsyncDocumentsApi,
+    DeleteDocumentResponse,
+    DocumentsApi,
+    SearchDocumentsResponse,
+    SignDocumentResponse,
+)
 from suz_sdk.api.health import PingResponse
 from suz_sdk.api.integration import (
     ConnectionInfo,
@@ -36,6 +43,7 @@ from suz_sdk.api.integration import (
     IntegrationApi,
     ListConnectionsResponse,
     RegisterConnectionResponse,
+    UotProfileResponse,
 )
 from suz_sdk.api.orders import (
     Block,
@@ -150,11 +158,18 @@ __all__ = [
     "QualityResponse",
     "QualityCisListResponse",
     "ModResponse",
+    # Response models (documents)
+    "SearchDocumentsResponse",
+    "DeleteDocumentResponse",
+    "SignDocumentResponse",
+    # Response models (integration — UOT)
+    "UotProfileResponse",
     # Sync API namespaces
     "OrdersApi",
     "ReportsApi",
     "IntegrationApi",
     "ReferenceApi",
+    "DocumentsApi",
     # Sync auth
     "TrueApiAuth",
     "TokenManager",
@@ -165,6 +180,7 @@ __all__ = [
     "AsyncOrdersApi",
     "AsyncReportsApi",
     "AsyncReferenceApi",
+    "AsyncDocumentsApi",
     # Async auth
     "AsyncTrueApiAuth",
     "AsyncTokenManager",
@@ -175,4 +191,4 @@ __all__ = [
     "RetryConfig",
 ]
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

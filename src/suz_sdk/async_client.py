@@ -26,6 +26,7 @@ from suz_sdk.api.async_health import AsyncHealthApi
 from suz_sdk.api.async_integration import AsyncIntegrationApi
 from suz_sdk.api.async_orders import AsyncOrdersApi
 from suz_sdk.api.async_reports import AsyncReportsApi
+from suz_sdk.api.documents import AsyncDocumentsApi
 from suz_sdk.api.reference import AsyncReferenceApi
 from suz_sdk.auth.async_auth_api import AsyncAuthApi
 from suz_sdk.auth.async_token_manager import AsyncTokenManager
@@ -144,6 +145,11 @@ class AsyncSuzClient:
             signer=self._config.signer,
         )
         self.reference = AsyncReferenceApi(
+            transport=self._transport,
+            oms_id=self._config.oms_id,
+            get_auth_headers=self._auth_headers,
+        )
+        self.documents = AsyncDocumentsApi(
             transport=self._transport,
             oms_id=self._config.oms_id,
             get_auth_headers=self._auth_headers,

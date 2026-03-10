@@ -38,6 +38,7 @@ Design notes:
 
 from typing import Any
 
+from suz_sdk.api.documents import DocumentsApi
 from suz_sdk.api.health import HealthApi
 from suz_sdk.api.integration import IntegrationApi
 from suz_sdk.api.orders import OrdersApi
@@ -167,6 +168,11 @@ class SuzClient:
             signer=self._config.signer,
         )
         self.reference = ReferenceApi(
+            transport=self._transport,
+            oms_id=self._config.oms_id,
+            get_auth_headers=self._auth_headers,
+        )
+        self.documents = DocumentsApi(
             transport=self._transport,
             oms_id=self._config.oms_id,
             get_auth_headers=self._auth_headers,

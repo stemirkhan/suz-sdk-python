@@ -9,6 +9,7 @@ from suz_sdk.api.integration import (
     IntegrationApi,
     ListConnectionsResponse,
     RegisterConnectionResponse,
+    UotProfileResponse,
 )
 from suz_sdk.signing.base import BaseSigner
 from suz_sdk.transport.base import Request
@@ -137,3 +138,34 @@ class AsyncIntegrationApi:
         resp = await transport.request(req)
         body: dict[str, Any] = resp.body
         return DeleteConnectionResponse(success=body.get("success", False))
+
+    async def get_uot_profile(self, bearer_token: str) -> UotProfileResponse:
+        """Retrieve the UOT profile for this OMS.
+
+        GET /api/v3/integration/profile
+
+        Uses ``Authorization: Bearer {bearer_token}`` — this is a separate JWT
+        issued by the UOT system and is passed explicitly.
+        """
+        from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
+
+        transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
+
+        req = Request(
+            method="GET",
+            path="/api/v3/integration/profile",
+            params={},
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {bearer_token}",
+            },
+        )
+        resp = await transport.request(req)
+        body: dict[str, Any] = resp.body
+        return UotProfileResponse(
+            oms_id=body.get("omsId"),
+            profile_status=body.get("profileStatus"),
+            product_groups=body.get("productGroups") or [],
+            locked_product_groups=body.get("lockedProductGroups") or [],
+            blocked_product_groups=body.get("blockedProductGroups") or [],
+        )
