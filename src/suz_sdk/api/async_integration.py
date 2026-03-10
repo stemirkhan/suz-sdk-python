@@ -1,10 +1,11 @@
 """Async IntegrationApi — registration endpoint (§9.2)."""
 
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from suz_sdk.api.integration import (
+    ConnectionInfo,
     DeleteConnectionResponse,
     IntegrationApi,
     ListConnectionsResponse,
@@ -112,6 +113,29 @@ class AsyncIntegrationApi:
             ],
             total=body["total"],
         )
+
+    async def aiter_connections(self, *, page_size: int = 100) -> AsyncIterator[ConnectionInfo]:
+        """Iterate over all registered integration connections across pages."""
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than 0")
+
+        offset = 0
+        yielded = 0
+
+        while True:
+            resp = await self.list_connections(limit=page_size, offset=offset)
+            batch = resp.oms_connection_infos
+            if not batch:
+                return
+
+            for item in batch:
+                yield item
+            yielded += len(batch)
+
+            if yielded >= resp.total or len(batch) < page_size:
+                return
+
+            offset += page_size
 
     async def delete_connection(self, oms_connection: str) -> DeleteConnectionResponse:
         """Delete a registered integration connection.

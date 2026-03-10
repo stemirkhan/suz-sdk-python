@@ -37,6 +37,18 @@ class StubTransport:
         return self._response
 
 
+class SequenceStubTransport:
+    def __init__(self, responses: list[Response]) -> None:
+        self._responses = responses
+        self.requests: list[Request] = []
+
+    def request(self, req: Request) -> Response:
+        self.requests.append(req)
+        index = len(self.requests) - 1
+        assert index < len(self._responses)
+        return self._responses[index]
+
+
 def _make_api(transport: StubTransport) -> OrdersApi:
     return OrdersApi(
         transport=transport,
@@ -455,3 +467,76 @@ class TestParseBufferInfoDefaults:
         data = {"gtin": _GTIN, "bufferStatus": "ACTIVE", "totalCodes": 10}
         buf = OrdersApi._parse_buffer_info(data)
         assert buf.template_id == 0
+
+
+# ---------------------------------------------------------------------------
+# iter_*()
+# ---------------------------------------------------------------------------
+
+class TestIterSearchOrders:
+    def test_iterates_all_pages_and_advances_page(self) -> None:
+        page_1 = {
+            "totalCount": 3,
+            "results": [
+                {**_SUMMARY_INFO, "orderId": "order-1"},
+                {**_SUMMARY_INFO, "orderId": "order-2"},
+            ],
+        }
+        page_2 = {
+            "totalCount": 3,
+            "results": [{**_SUMMARY_INFO, "orderId": "order-3"}],
+        }
+        transport = SequenceStubTransport(
+            responses=[
+                Response(status_code=200, headers={}, body=page_1),
+                Response(status_code=200, headers={}, body=page_2),
+            ]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_search_orders(page_size=2))
+
+        assert [item.order_id for item in result] == ["order-1", "order-2", "order-3"]
+        assert len(transport.requests) == 2
+        first_body = transport.requests[0].json_body
+        second_body = transport.requests[1].json_body
+        assert first_body is not None
+        assert second_body is not None
+        assert first_body["limit"] == 2
+        assert first_body["page"] == 0
+        assert second_body["page"] == 1
+
+    def test_empty_result_stops_after_first_request(self) -> None:
+        transport = SequenceStubTransport(
+            responses=[Response(status_code=200, headers={}, body={"totalCount": 0, "results": []})]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_search_orders(page_size=10))
+
+        assert result == []
+        assert len(transport.requests) == 1
+
+
+class TestIterOrders:
+    def test_iter_orders_uses_paginated_search(self) -> None:
+        page_1 = {
+            "totalCount": 2,
+            "results": [{**_SUMMARY_INFO, "orderId": "order-a"}],
+        }
+        page_2 = {
+            "totalCount": 2,
+            "results": [{**_SUMMARY_INFO, "orderId": "order-b"}],
+        }
+        transport = SequenceStubTransport(
+            responses=[
+                Response(status_code=200, headers={}, body=page_1),
+                Response(status_code=200, headers={}, body=page_2),
+            ]
+        )
+        api = _make_api(transport)  # type: ignore[arg-type]
+
+        result = list(api.iter_orders(page_size=1))
+
+        assert [item.order_id for item in result] == ["order-a", "order-b"]
+        assert all(req.path == "/api/v3/orders/search" for req in transport.requests)

@@ -8,7 +8,7 @@ Endpoints implemented:
     sign_document()         POST   /api/v3/documents/sign
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -165,6 +165,33 @@ class DocumentsApi:
             total_count=body["totalCount"],
             results=body.get("results", []),
         )
+
+    def iter_documents(
+        self,
+        document_type: str,
+        *,
+        page_size: int = 100,
+    ) -> Iterator[dict[str, Any]]:
+        """Iterate over all matching documents across pages."""
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than 0")
+
+        skip = 0
+        yielded = 0
+
+        while True:
+            resp = self.search_documents(document_type=document_type, limit=page_size, skip=skip)
+            batch = resp.results
+            if not batch:
+                return
+
+            yield from batch
+            yielded += len(batch)
+
+            if yielded >= resp.total_count or len(batch) < page_size:
+                return
+
+            skip += page_size
 
     def get_document_content(self, doc_id: str) -> dict[str, Any]:
         """Retrieve the content of a document by its doc ID.
@@ -359,6 +386,38 @@ class AsyncDocumentsApi:
             total_count=body["totalCount"],
             results=body.get("results", []),
         )
+
+    async def aiter_documents(
+        self,
+        document_type: str,
+        *,
+        page_size: int = 100,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Iterate over all matching documents across pages."""
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than 0")
+
+        skip = 0
+        yielded = 0
+
+        while True:
+            resp = await self.search_documents(
+                document_type=document_type,
+                limit=page_size,
+                skip=skip,
+            )
+            batch = resp.results
+            if not batch:
+                return
+
+            for item in batch:
+                yield item
+            yielded += len(batch)
+
+            if yielded >= resp.total_count or len(batch) < page_size:
+                return
+
+            skip += page_size
 
     async def get_document_content(self, doc_id: str) -> dict[str, Any]:
         """Retrieve the content of a document by its doc ID.

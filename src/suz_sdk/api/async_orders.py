@@ -1,7 +1,7 @@
 """Async OrdersApi — KM emission orders (§4.4)."""
 
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, cast
 
 from suz_sdk.api.orders import (
@@ -133,6 +133,11 @@ class AsyncOrdersApi:
                 for item in body.get("orderInfos", [])
             ],
         )
+
+    async def aiter_orders(self, *, page_size: int = 100) -> AsyncIterator[OrderSummaryInfo]:
+        """Iterate over all orders using paginated search requests."""
+        async for item in self.aiter_search_orders(filter=None, page_size=page_size):
+            yield item
 
     async def get_codes(
         self,
@@ -289,6 +294,34 @@ class AsyncOrdersApi:
                 for item in body.get("results", [])
             ],
         )
+
+    async def aiter_search_orders(
+        self,
+        filter: OrderFilter | None = None,
+        *,
+        page_size: int = 100,
+    ) -> AsyncIterator[OrderSummaryInfo]:
+        """Iterate over all search results across pages."""
+        if page_size <= 0:
+            raise ValueError("page_size must be greater than 0")
+
+        page = 0
+        yielded = 0
+
+        while True:
+            resp = await self.search_orders(filter=filter, limit=page_size, page=page)
+            batch = resp.results
+            if not batch:
+                return
+
+            for item in batch:
+                yield item
+            yielded += len(batch)
+
+            if yielded >= resp.total_count or len(batch) < page_size:
+                return
+
+            page += 1
 
     async def close(
         self,
