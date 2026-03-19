@@ -122,23 +122,31 @@ class TestGetReceiptDocument:
         payload = {"docId": _RESULT_DOC_ID, "status": "PROCESSED"}
         transport = StubTransport(response=_ok(payload))
         api = _make_api(transport)
-        result = api.get_receipt_document(_RESULT_DOC_ID)
+        result = api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         assert isinstance(result, dict)
         assert result["docId"] == _RESULT_DOC_ID
 
     def test_sends_get_to_correct_path(self) -> None:
         transport = StubTransport(response=_ok({}))
         api = _make_api(transport)
-        api.get_receipt_document(_RESULT_DOC_ID)
+        api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
         assert req.path == "/api/v3/receipts/document"
 
+    def test_sends_doc_id_in_params(self) -> None:
+        transport = StubTransport(response=_ok({"content": "..."}))
+        api = _make_api(transport)
+        api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
+        req = transport.last_request
+        assert req is not None
+        assert req.params.get("docId") == _DOC_ID
+
     def test_sends_oms_id_and_result_doc_id(self) -> None:
         transport = StubTransport(response=_ok({}))
         api = _make_api(transport)
-        api.get_receipt_document(_RESULT_DOC_ID)
+        api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
@@ -147,7 +155,7 @@ class TestGetReceiptDocument:
     def test_sends_auth_header(self) -> None:
         transport = StubTransport(response=_ok({}))
         api = _make_api(transport, token=_TOKEN)
-        api.get_receipt_document(_RESULT_DOC_ID)
+        api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
@@ -155,7 +163,7 @@ class TestGetReceiptDocument:
     def test_no_token_sends_no_auth_header(self) -> None:
         transport = StubTransport(response=_ok({}))
         api = _make_api(transport, token=None)
-        api.get_receipt_document(_RESULT_DOC_ID)
+        api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert "clientToken" not in req.headers
@@ -163,7 +171,7 @@ class TestGetReceiptDocument:
     def test_sends_accept_json_header(self) -> None:
         transport = StubTransport(response=_ok({}))
         api = _make_api(transport)
-        api.get_receipt_document(_RESULT_DOC_ID)
+        api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.headers.get("Accept") == "application/json"
@@ -171,7 +179,7 @@ class TestGetReceiptDocument:
     def test_empty_response_returns_empty_dict(self) -> None:
         transport = StubTransport(response=_ok({}))
         api = _make_api(transport)
-        result = api.get_receipt_document(_RESULT_DOC_ID)
+        result = api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         assert result == {}
 
 
@@ -183,7 +191,7 @@ class TestGetReceiptDocument:
 class TestSearchDocuments:
     def test_returns_search_documents_response(self) -> None:
         docs = [{"docId": "d1"}, {"docId": "d2"}]
-        transport = StubTransport(response=_ok({"totalCount": 2, "results": docs}))
+        transport = StubTransport(response=_ok({"totalCount": 2, "result": docs}))
         api = _make_api(transport)
         result = api.search_documents(_DOC_TYPE)
         assert isinstance(result, SearchDocumentsResponse)
@@ -191,7 +199,7 @@ class TestSearchDocuments:
         assert result.results == docs
 
     def test_sends_get_to_correct_path(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_api(transport)
         api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -200,7 +208,7 @@ class TestSearchDocuments:
         assert req.path == "/api/v3/documents/search"
 
     def test_sends_oms_id_and_document_type(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_api(transport)
         api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -209,7 +217,7 @@ class TestSearchDocuments:
         assert req.params.get("documentType") == _DOC_TYPE
 
     def test_sends_optional_limit_and_skip(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_api(transport)
         api.search_documents(_DOC_TYPE, limit=10, skip=20)
         req = transport.last_request
@@ -218,7 +226,7 @@ class TestSearchDocuments:
         assert req.params.get("skip") == "20"
 
     def test_omits_limit_and_skip_when_none(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_api(transport)
         api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -227,7 +235,7 @@ class TestSearchDocuments:
         assert "skip" not in req.params
 
     def test_sends_auth_header(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_api(transport, token=_TOKEN)
         api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -235,7 +243,7 @@ class TestSearchDocuments:
         assert req.headers.get("clientToken") == _TOKEN
 
     def test_empty_results(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_api(transport)
         result = api.search_documents(_DOC_TYPE)
         assert result.total_count == 0
@@ -458,7 +466,7 @@ class TestAsyncGetReceiptDocument:
         payload = {"docId": _RESULT_DOC_ID, "status": "PROCESSED"}
         transport = AsyncStubTransport(response=_ok(payload))
         api = _make_async_api(transport)
-        result = await api.get_receipt_document(_RESULT_DOC_ID)
+        result = await api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         assert isinstance(result, dict)
         assert result["docId"] == _RESULT_DOC_ID
 
@@ -466,7 +474,7 @@ class TestAsyncGetReceiptDocument:
     async def test_sends_get_to_correct_path(self) -> None:
         transport = AsyncStubTransport(response=_ok({}))
         api = _make_async_api(transport)
-        await api.get_receipt_document(_RESULT_DOC_ID)
+        await api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
@@ -476,7 +484,7 @@ class TestAsyncGetReceiptDocument:
     async def test_sends_oms_id_and_result_doc_id(self) -> None:
         transport = AsyncStubTransport(response=_ok({}))
         api = _make_async_api(transport)
-        await api.get_receipt_document(_RESULT_DOC_ID)
+        await api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
@@ -486,7 +494,7 @@ class TestAsyncGetReceiptDocument:
     async def test_sends_auth_header(self) -> None:
         transport = AsyncStubTransport(response=_ok({}))
         api = _make_async_api(transport, token=_TOKEN)
-        await api.get_receipt_document(_RESULT_DOC_ID)
+        await api.get_receipt_document(_RESULT_DOC_ID, _DOC_ID)
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
@@ -501,7 +509,7 @@ class TestAsyncSearchDocuments:
     @pytest.mark.anyio
     async def test_returns_search_documents_response(self) -> None:
         docs = [{"docId": "d1"}]
-        transport = AsyncStubTransport(response=_ok({"totalCount": 1, "results": docs}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 1, "result": docs}))
         api = _make_async_api(transport)
         result = await api.search_documents(_DOC_TYPE)
         assert isinstance(result, SearchDocumentsResponse)
@@ -510,7 +518,7 @@ class TestAsyncSearchDocuments:
 
     @pytest.mark.anyio
     async def test_sends_get_to_correct_path(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_async_api(transport)
         await api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -520,7 +528,7 @@ class TestAsyncSearchDocuments:
 
     @pytest.mark.anyio
     async def test_sends_required_params(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_async_api(transport)
         await api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -530,7 +538,7 @@ class TestAsyncSearchDocuments:
 
     @pytest.mark.anyio
     async def test_sends_optional_limit_and_skip(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_async_api(transport)
         await api.search_documents(_DOC_TYPE, limit=5, skip=10)
         req = transport.last_request
@@ -540,7 +548,7 @@ class TestAsyncSearchDocuments:
 
     @pytest.mark.anyio
     async def test_omits_limit_and_skip_when_none(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_async_api(transport)
         await api.search_documents(_DOC_TYPE)
         req = transport.last_request
@@ -550,7 +558,7 @@ class TestAsyncSearchDocuments:
 
     @pytest.mark.anyio
     async def test_sends_auth_header(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "result": []}))
         api = _make_async_api(transport, token=_TOKEN)
         await api.search_documents(_DOC_TYPE)
         req = transport.last_request

@@ -422,7 +422,7 @@ class TestAsyncOrdersApi:
             ],
         })
         client = make_client(t)
-        resp = await client.orders.search_orders(limit=5, page=0)
+        resp = await client.orders.search_orders(limit=5, page=1)
         assert isinstance(resp, SearchOrdersResponse)
         assert resp.total_count == 2
         assert len(resp.results) == 1

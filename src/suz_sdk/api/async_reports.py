@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from suz_sdk.api.reports import (
+    AggregationUnit,
     ReceiptFilter,
     ReportsApi,
     ReportStatusResponse,
@@ -79,7 +80,7 @@ class AsyncReportsApi:
         self,
         product_group: str,
         sntins: list[str],
-        dropout_reason: str | None = None,
+        dropout_reason: str,
         attributes: dict[str, Any] | None = None,
     ) -> SendDropoutResponse:
         """Send a KM dropout report (POST /api/v3/dropout)."""
@@ -90,9 +91,8 @@ class AsyncReportsApi:
         body_dict: dict[str, Any] = {
             "productGroup": product_group,
             "sntins": sntins,
+            "dropoutReason": dropout_reason,
         }
-        if dropout_reason is not None:
-            body_dict["dropoutReason"] = dropout_reason
         if attributes is not None:
             body_dict["attributes"] = attributes
 
@@ -120,8 +120,8 @@ class AsyncReportsApi:
     async def send_aggregation(
         self,
         product_group: str,
-        sntins: list[str],
-        aggregation_type: str | None = None,
+        participant_id: str,
+        aggregation_units: list[AggregationUnit],
         attributes: dict[str, Any] | None = None,
     ) -> SendAggregationResponse:
         """Send a KM aggregation report (POST /api/v3/aggregation)."""
@@ -131,10 +131,18 @@ class AsyncReportsApi:
 
         body_dict: dict[str, Any] = {
             "productGroup": product_group,
-            "sntins": sntins,
+            "participantId": participant_id,
+            "aggregationUnits": [
+                {
+                    "aggregatedItemsCount": u.aggregated_items_count,
+                    "aggregationType": "AGGREGATION",
+                    "aggregationUnitCapacity": u.aggregation_unit_capacity,
+                    "sntins": u.sntins,
+                    "unitSerialNumber": u.unit_serial_number,
+                }
+                for u in aggregation_units
+            ],
         }
-        if aggregation_type is not None:
-            body_dict["aggregationType"] = aggregation_type
         if attributes is not None:
             body_dict["attributes"] = attributes
 
@@ -162,20 +170,36 @@ class AsyncReportsApi:
     async def send_surplus(
         self,
         product_group: str,
-        sntins: list[str],
-        attributes: dict[str, Any] | None = None,
+        document_date: str,
+        participant_inn: str,
+        primary_document_custom_name: str,
+        primary_document_date: str,
+        primary_document_number: str,
+        codes: list[str],
+        document_type: str = "SURPLUS_POSTING",
+        document_version: str = "1.0",
+        participant_kpp: str | None = None,
+        participant_fias: str | None = None,
     ) -> SendSurplusResponse:
-        """Send a KM surplus report (POST /api/v3/surplus)."""
+        """Send a surplus posting notification (POST /api/v3/surplus, §4.4.12)."""
         from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
 
         transport: AsyncHttpxTransport = self._transport  # type: ignore[assignment]
 
         body_dict: dict[str, Any] = {
-            "productGroup": product_group,
-            "sntins": sntins,
+            "documentType": document_type,
+            "documentVersion": document_version,
+            "documentDate": document_date,
+            "participantInn": participant_inn,
+            "primaryDocumentCustomName": primary_document_custom_name,
+            "primaryDocumentDate": primary_document_date,
+            "primaryDocumentNumber": primary_document_number,
+            "codes": codes,
         }
-        if attributes is not None:
-            body_dict["attributes"] = attributes
+        if participant_kpp is not None:
+            body_dict["participantKpp"] = participant_kpp
+        if participant_fias is not None:
+            body_dict["participantFias"] = participant_fias
 
         raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
 
@@ -190,7 +214,7 @@ class AsyncReportsApi:
         req = Request(
             method="POST",
             path="/api/v3/surplus",
-            params={"omsId": self._oms_id},
+            params={"omsId": self._oms_id, "productGroup": product_group},
             headers=headers,
             raw_body=raw_body,
         )

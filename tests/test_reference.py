@@ -12,10 +12,10 @@ import pytest
 
 from suz_sdk.api.reference import (
     AsyncReferenceApi,
-    ModResponse,
+    ModListResponse,
     ProvidersResponse,
     QualityCisListResponse,
-    QualityResponse,
+    QualityListResponse,
     ReferenceApi,
 )
 from suz_sdk.transport.base import Request, Response
@@ -26,6 +26,7 @@ from suz_sdk.transport.base import Request, Response
 
 _OMS_ID = "cdf12109-10d3-11e6-8b6f-0050569977a1"
 _ORDER_ID = "b024ae09-ef7c-449e-b461-05d8eb116c79"
+_REPORT_ID = "fab1c0e4-9590-4ed7-8d58-18862d6a9aab"
 _GTIN = "04606031026879"
 _TOKEN = "test-client-token"
 
@@ -183,70 +184,61 @@ class TestGetProviders:
 
 
 class TestGetQuality:
-    def test_returns_quality_response(self) -> None:
-        transport = StubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "ACTIVE"})
-        )
+    def test_returns_quality_list_response(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 2, "results": ["id1", "id2"]}))
         api = _make_api(transport)
-        result = api.get_quality(_ORDER_ID)
-        assert isinstance(result, QualityResponse)
-        assert result.order_id == _ORDER_ID
-        assert result.buffer_status == "ACTIVE"
+        result = api.get_quality()
+        assert isinstance(result, QualityListResponse)
+        assert result.total_count == 2
+        assert result.results == ["id1", "id2"]
 
     def test_sends_get_to_correct_path(self) -> None:
-        transport = StubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "ACTIVE"})
-        )
+        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_api(transport)
-        api.get_quality(_ORDER_ID)
+        api.get_quality()
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
         assert req.path == "/api/v3/quality"
 
-    def test_sends_oms_id_and_order_id(self) -> None:
-        transport = StubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "PENDING"})
-        )
+    def test_sends_oms_id_param(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_api(transport)
-        api.get_quality(_ORDER_ID)
+        api.get_quality()
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
+
+    def test_order_id_optional_not_sent_when_none(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        api = _make_api(transport)
+        api.get_quality()
+        req = transport.last_request
+        assert req is not None
+        assert "orderId" not in req.params
+
+    def test_order_id_sent_when_provided(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 1, "results": [_ORDER_ID]}))
+        api = _make_api(transport)
+        api.get_quality(order_id=_ORDER_ID)
+        req = transport.last_request
+        assert req is not None
         assert req.params.get("orderId") == _ORDER_ID
 
     def test_sends_auth_header(self) -> None:
-        transport = StubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "ACTIVE"})
-        )
+        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_api(transport, token=_TOKEN)
-        api.get_quality(_ORDER_ID)
+        api.get_quality()
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
 
-    def test_extra_fields_preserved(self) -> None:
-        transport = StubTransport(
-            response=_ok(
-                {
-                    "orderId": _ORDER_ID,
-                    "bufferStatus": "ACTIVE",
-                    "someExtraField": "extra_value",
-                }
-            )
-        )
+    def test_empty_results(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_api(transport)
-        result = api.get_quality(_ORDER_ID)
-        assert result.model_extra is not None
-        assert result.model_extra.get("someExtraField") == "extra_value"
-
-    def test_rejected_buffer_status(self) -> None:
-        transport = StubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "REJECTED"})
-        )
-        api = _make_api(transport)
-        result = api.get_quality(_ORDER_ID)
-        assert result.buffer_status == "REJECTED"
+        result = api.get_quality()
+        assert result.total_count == 0
+        assert result.results == []
 
 
 # ---------------------------------------------------------------------------
@@ -256,67 +248,64 @@ class TestGetQuality:
 
 class TestGetQualityCisList:
     def test_returns_quality_cis_list_response(self) -> None:
-        cis_items = [{"cis": "010123456789012321abc"}, {"cis": "010123456789012321def"}]
+        sntins = [{"code": "SNTIN1", "quality": "A"}]
         transport = StubTransport(
-            response=_ok({"totalCount": 2, "results": cis_items})
+            response=_ok({"sntins": sntins, "usageType": "PRINTED", "orderId": _ORDER_ID})
         )
         api = _make_api(transport)
-        result = api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        result = api.get_quality_cis_list(_REPORT_ID)
         assert isinstance(result, QualityCisListResponse)
-        assert result.total_count == 2
-        assert result.results == cis_items
+        assert result.sntins == sntins
+        assert result.usage_type == "PRINTED"
+        assert result.order_id == _ORDER_ID
 
     def test_sends_get_to_correct_path(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(
+            response=_ok({"sntins": [], "usageType": "PRINTED"})
+        )
         api = _make_api(transport)
-        api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        api.get_quality_cis_list(_REPORT_ID)
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
         assert req.path == "/api/v3/quality/cisList"
 
     def test_sends_required_query_params(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(
+            response=_ok({"sntins": [], "usageType": "PRINTED"})
+        )
         api = _make_api(transport)
-        api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        api.get_quality_cis_list(_REPORT_ID)
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
-        assert req.params.get("orderId") == _ORDER_ID
-        assert req.params.get("gtin") == _GTIN
-
-    def test_sends_optional_limit_and_skip(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
-        api = _make_api(transport)
-        api.get_quality_cis_list(_ORDER_ID, _GTIN, limit=10, skip=20)
-        req = transport.last_request
-        assert req is not None
-        assert req.params.get("limit") == "10"
-        assert req.params.get("skip") == "20"
-
-    def test_omits_limit_and_skip_when_none(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
-        api = _make_api(transport)
-        api.get_quality_cis_list(_ORDER_ID, _GTIN)
-        req = transport.last_request
-        assert req is not None
-        assert "limit" not in req.params
-        assert "skip" not in req.params
+        assert req.params.get("reportId") == _REPORT_ID
 
     def test_sends_auth_header(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = StubTransport(
+            response=_ok({"sntins": [], "usageType": "VERIFIED"})
+        )
         api = _make_api(transport, token=_TOKEN)
-        api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        api.get_quality_cis_list(_REPORT_ID)
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
 
-    def test_empty_results(self) -> None:
-        transport = StubTransport(response=_ok({"totalCount": 0, "results": []}))
+    def test_order_id_optional_in_response(self) -> None:
+        transport = StubTransport(
+            response=_ok({"sntins": [], "usageType": "PRINTED"})
+        )
         api = _make_api(transport)
-        result = api.get_quality_cis_list(_ORDER_ID, _GTIN)
-        assert result.total_count == 0
-        assert result.results == []
+        result = api.get_quality_cis_list(_REPORT_ID)
+        assert result.order_id is None
+
+    def test_empty_sntins(self) -> None:
+        transport = StubTransport(
+            response=_ok({"sntins": [], "usageType": "PRINTED"})
+        )
+        api = _make_api(transport)
+        result = api.get_quality_cis_list(_REPORT_ID)
+        assert result.sntins == []
 
 
 # ---------------------------------------------------------------------------
@@ -325,45 +314,64 @@ class TestGetQualityCisList:
 
 
 class TestGetMod:
-    def test_returns_mod_response(self) -> None:
-        transport = StubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+    def test_returns_mod_list_response(self) -> None:
+        info = [{"id": 315, "name": "Test1", "address": "addr", "groupIds": [3, 1], "mod": True}]
+        transport = StubTransport(response=_ok({"totalCount": 1, "manufactureInfo": info}))
         api = _make_api(transport)
-        result = api.get_mod()
-        assert isinstance(result, ModResponse)
-        assert result.mod == "SUZ_OMS_v3"
+        result = api.get_mod("milk")
+        assert isinstance(result, ModListResponse)
+        assert result.total_count == 1
+        assert result.manufacture_info == info
 
     def test_sends_get_to_correct_path(self) -> None:
-        transport = StubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_api(transport)
-        api.get_mod()
+        api.get_mod("milk")
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
         assert req.path == "/api/v3/mod"
 
-    def test_sends_oms_id_query_param(self) -> None:
-        transport = StubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+    def test_sends_oms_id_and_product_group(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_api(transport)
-        api.get_mod()
+        api.get_mod("shoes")
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
+        assert req.params.get("productGroup") == "shoes"
+
+    def test_sends_optional_limit_and_skip(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
+        api = _make_api(transport)
+        api.get_mod("milk", limit=5, skip=10)
+        req = transport.last_request
+        assert req is not None
+        assert req.params.get("limit") == "5"
+        assert req.params.get("skip") == "10"
 
     def test_sends_auth_header(self) -> None:
-        transport = StubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_api(transport, token=_TOKEN)
-        api.get_mod()
+        api.get_mod("milk")
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
 
     def test_sends_accept_json_header(self) -> None:
-        transport = StubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+        transport = StubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_api(transport)
-        api.get_mod()
+        api.get_mod("milk")
         req = transport.last_request
         assert req is not None
         assert req.headers.get("Accept") == "application/json"
+
+    def test_empty_manufacture_info(self) -> None:
+        transport = StubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
+        api = _make_api(transport)
+        result = api.get_mod("milk")
+        assert result.total_count == 0
+        assert result.manufacture_info == []
 
 
 # ---------------------------------------------------------------------------
@@ -393,10 +401,14 @@ class TestSuzClientWiring:
     def test_client_reference_get_mod(self) -> None:
         from suz_sdk.client import SuzClient
 
-        transport = StubTransport(response=_ok({"mod": "modX"}))
+        transport = StubTransport(response=_ok({
+            "totalCount": 1,
+            "manufactureInfo": [{"id": 1, "address": "addr", "groupIds": [3], "mod": True}],
+        }))
         client = SuzClient(oms_id=_OMS_ID, client_token=_TOKEN, transport=transport)
-        result = client.reference.get_mod()
-        assert result.mod == "modX"
+        result = client.reference.get_mod("milk")
+        assert isinstance(result, ModListResponse)
+        assert result.total_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -450,66 +462,50 @@ class TestAsyncGetProviders:
 
 class TestAsyncGetQuality:
     @pytest.mark.anyio
-    async def test_returns_quality_response(self) -> None:
-        transport = AsyncStubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "ACTIVE"})
-        )
+    async def test_returns_quality_list_response(self) -> None:
+        transport = AsyncStubTransport(response=_ok({"totalCount": 2, "results": ["id1", "id2"]}))
         api = _make_async_api(transport)
-        result = await api.get_quality(_ORDER_ID)
-        assert isinstance(result, QualityResponse)
-        assert result.order_id == _ORDER_ID
-        assert result.buffer_status == "ACTIVE"
+        result = await api.get_quality()
+        assert isinstance(result, QualityListResponse)
+        assert result.total_count == 2
+        assert result.results == ["id1", "id2"]
 
     @pytest.mark.anyio
     async def test_sends_get_to_correct_path(self) -> None:
-        transport = AsyncStubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "ACTIVE"})
-        )
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_async_api(transport)
-        await api.get_quality(_ORDER_ID)
+        await api.get_quality()
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
         assert req.path == "/api/v3/quality"
 
     @pytest.mark.anyio
-    async def test_sends_required_params(self) -> None:
-        transport = AsyncStubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "PENDING"})
-        )
+    async def test_order_id_optional_not_sent_when_none(self) -> None:
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_async_api(transport)
-        await api.get_quality(_ORDER_ID)
+        await api.get_quality()
         req = transport.last_request
         assert req is not None
-        assert req.params.get("omsId") == _OMS_ID
+        assert "orderId" not in req.params
+
+    @pytest.mark.anyio
+    async def test_order_id_sent_when_provided(self) -> None:
+        transport = AsyncStubTransport(response=_ok({"totalCount": 1, "results": [_ORDER_ID]}))
+        api = _make_async_api(transport)
+        await api.get_quality(order_id=_ORDER_ID)
+        req = transport.last_request
+        assert req is not None
         assert req.params.get("orderId") == _ORDER_ID
 
     @pytest.mark.anyio
     async def test_sends_auth_header(self) -> None:
-        transport = AsyncStubTransport(
-            response=_ok({"orderId": _ORDER_ID, "bufferStatus": "ACTIVE"})
-        )
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
         api = _make_async_api(transport, token=_TOKEN)
-        await api.get_quality(_ORDER_ID)
+        await api.get_quality()
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
-
-    @pytest.mark.anyio
-    async def test_extra_fields_preserved(self) -> None:
-        transport = AsyncStubTransport(
-            response=_ok(
-                {
-                    "orderId": _ORDER_ID,
-                    "bufferStatus": "ACTIVE",
-                    "extraKey": "extraVal",
-                }
-            )
-        )
-        api = _make_async_api(transport)
-        result = await api.get_quality(_ORDER_ID)
-        assert result.model_extra is not None
-        assert result.model_extra.get("extraKey") == "extraVal"
 
 
 # ---------------------------------------------------------------------------
@@ -520,21 +516,21 @@ class TestAsyncGetQuality:
 class TestAsyncGetQualityCisList:
     @pytest.mark.anyio
     async def test_returns_quality_cis_list_response(self) -> None:
-        cis_items = [{"cis": "010123456789012321abc"}]
+        sntins = [{"code": "SNTIN1", "quality": "A"}]
         transport = AsyncStubTransport(
-            response=_ok({"totalCount": 1, "results": cis_items})
+            response=_ok({"sntins": sntins, "usageType": "PRINTED", "orderId": _ORDER_ID})
         )
         api = _make_async_api(transport)
-        result = await api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        result = await api.get_quality_cis_list(_REPORT_ID)
         assert isinstance(result, QualityCisListResponse)
-        assert result.total_count == 1
-        assert result.results == cis_items
+        assert result.sntins == sntins
+        assert result.usage_type == "PRINTED"
 
     @pytest.mark.anyio
     async def test_sends_get_to_correct_path(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"sntins": [], "usageType": "PRINTED"}))
         api = _make_async_api(transport)
-        await api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        await api.get_quality_cis_list(_REPORT_ID)
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
@@ -542,40 +538,19 @@ class TestAsyncGetQualityCisList:
 
     @pytest.mark.anyio
     async def test_sends_required_params(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"sntins": [], "usageType": "PRINTED"}))
         api = _make_async_api(transport)
-        await api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        await api.get_quality_cis_list(_REPORT_ID)
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
-        assert req.params.get("orderId") == _ORDER_ID
-        assert req.params.get("gtin") == _GTIN
-
-    @pytest.mark.anyio
-    async def test_sends_optional_limit_and_skip(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
-        api = _make_async_api(transport)
-        await api.get_quality_cis_list(_ORDER_ID, _GTIN, limit=5, skip=10)
-        req = transport.last_request
-        assert req is not None
-        assert req.params.get("limit") == "5"
-        assert req.params.get("skip") == "10"
-
-    @pytest.mark.anyio
-    async def test_omits_limit_and_skip_when_none(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
-        api = _make_async_api(transport)
-        await api.get_quality_cis_list(_ORDER_ID, _GTIN)
-        req = transport.last_request
-        assert req is not None
-        assert "limit" not in req.params
-        assert "skip" not in req.params
+        assert req.params.get("reportId") == _REPORT_ID
 
     @pytest.mark.anyio
     async def test_sends_auth_header(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "results": []}))
+        transport = AsyncStubTransport(response=_ok({"sntins": [], "usageType": "VERIFIED"}))
         api = _make_async_api(transport, token=_TOKEN)
-        await api.get_quality_cis_list(_ORDER_ID, _GTIN)
+        await api.get_quality_cis_list(_REPORT_ID)
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
@@ -588,37 +563,40 @@ class TestAsyncGetQualityCisList:
 
 class TestAsyncGetMod:
     @pytest.mark.anyio
-    async def test_returns_mod_response(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+    async def test_returns_mod_list_response(self) -> None:
+        info = [{"id": 315, "address": "addr", "groupIds": [3], "mod": True}]
+        transport = AsyncStubTransport(response=_ok({"totalCount": 1, "manufactureInfo": info}))
         api = _make_async_api(transport)
-        result = await api.get_mod()
-        assert isinstance(result, ModResponse)
-        assert result.mod == "SUZ_OMS_v3"
+        result = await api.get_mod("milk")
+        assert isinstance(result, ModListResponse)
+        assert result.total_count == 1
+        assert result.manufacture_info == info
 
     @pytest.mark.anyio
     async def test_sends_get_to_correct_path(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_async_api(transport)
-        await api.get_mod()
+        await api.get_mod("milk")
         req = transport.last_request
         assert req is not None
         assert req.method == "GET"
         assert req.path == "/api/v3/mod"
 
     @pytest.mark.anyio
-    async def test_sends_oms_id_query_param(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+    async def test_sends_oms_id_and_product_group(self) -> None:
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_async_api(transport)
-        await api.get_mod()
+        await api.get_mod("shoes")
         req = transport.last_request
         assert req is not None
         assert req.params.get("omsId") == _OMS_ID
+        assert req.params.get("productGroup") == "shoes"
 
     @pytest.mark.anyio
     async def test_sends_auth_header(self) -> None:
-        transport = AsyncStubTransport(response=_ok({"mod": "SUZ_OMS_v3"}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         api = _make_async_api(transport, token=_TOKEN)
-        await api.get_mod()
+        await api.get_mod("milk")
         req = transport.last_request
         assert req is not None
         assert req.headers.get("clientToken") == _TOKEN
@@ -653,7 +631,8 @@ class TestAsyncSuzClientWiring:
     async def test_client_reference_get_mod(self) -> None:
         from suz_sdk.async_client import AsyncSuzClient
 
-        transport = AsyncStubTransport(response=_ok({"mod": "modX"}))
+        transport = AsyncStubTransport(response=_ok({"totalCount": 0, "manufactureInfo": []}))
         client = AsyncSuzClient(oms_id=_OMS_ID, client_token=_TOKEN, transport=transport)
-        result = await client.reference.get_mod()
-        assert result.mod == "modX"
+        result = await client.reference.get_mod("milk")
+        assert isinstance(result, ModListResponse)
+        assert result.total_count == 0

@@ -61,13 +61,14 @@ from suz_sdk.api.orders import (
 )
 from suz_sdk.api.reference import (
     AsyncReferenceApi,
-    ModResponse,
+    ModListResponse,
     ProvidersResponse,
     QualityCisListResponse,
-    QualityResponse,
+    QualityListResponse,
     ReferenceApi,
 )
 from suz_sdk.api.reports import (
+    AggregationUnit,
     ReceiptFilter,
     ReportsApi,
     ReportStatusResponse,
@@ -151,13 +152,14 @@ __all__ = [
     "SendSurplusResponse",
     "ReportStatusResponse",
     "SearchReceiptsResponse",
-    # Request models (reports)
+    # Request/input models (reports)
+    "AggregationUnit",
     "ReceiptFilter",
     # Response models (reference)
     "ProvidersResponse",
-    "QualityResponse",
+    "QualityListResponse",
     "QualityCisListResponse",
-    "ModResponse",
+    "ModListResponse",
     # Response models (documents)
     "SearchDocumentsResponse",
     "DeleteDocumentResponse",
@@ -191,4 +193,4 @@ __all__ = [
     "RetryConfig",
 ]
 
-__version__ = "1.2.0"
+__version__ = "2.0.0"

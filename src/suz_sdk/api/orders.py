@@ -61,7 +61,7 @@ class BufferInfo:
     gtin: str
     buffer_status: str          # ACTIVE | PENDING | REJECTED
     available_codes: int
-    total_codes: int
+    total_codes: str | int
     total_passed: int
     unavailable_codes: int
     left_in_buffer: int
@@ -467,7 +467,7 @@ class OrdersApi:
         self,
         filter: OrderFilter | None = None,
         limit: int = 10,
-        page: int = 0,
+        page: int = 1,
     ) -> SearchOrdersResponse:
         """Search orders with optional filtering and pagination.
 
@@ -476,7 +476,7 @@ class OrdersApi:
         Args:
             filter: Optional OrderFilter with search criteria.
             limit:  Maximum number of results to return.
-            page:   Zero-based page number.
+            page:   1-based page number (default 1, max 100).
 
         Returns:
             SearchOrdersResponse with total_count and a list of OrderSummaryInfo.

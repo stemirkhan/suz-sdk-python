@@ -84,16 +84,19 @@ class DocumentsApi:
     # Public methods
     # ------------------------------------------------------------------
 
-    def get_receipt_document(self, result_doc_id: str) -> dict[str, Any]:
-        """Retrieve a receipt document by its result doc ID.
+    def get_receipt_document(self, result_doc_id: str, doc_id: str) -> dict[str, Any]:
+        """Retrieve the document associated with a receipt (§4.4.20).
 
-        GET /api/v3/receipts/document?omsId={omsId}&resultDocId={resultDocId}
+        GET /api/v3/receipts/document?omsId={omsId}&resultDocId={resultDocId}&docId={docId}
+
+        All three query parameters are required (§4.4.20.1, Table 212).
 
         Args:
-            result_doc_id: The resultDocId of the receipt document to retrieve.
+            result_doc_id: UUID of the receipt (order, report, or KM block).
+            doc_id:        UUID of the associated document linked to the receipt.
 
         Returns:
-            Raw response dict (schema is complex and product-group-specific).
+            Raw response dict with ``content`` field (base64-encoded document).
 
         Raises:
             SuzAuthError:       clientToken is missing or invalid.
@@ -107,6 +110,7 @@ class DocumentsApi:
             params={
                 "omsId": self._oms_id,
                 "resultDocId": result_doc_id,
+                "docId": doc_id,
             },
             headers={
                 "Accept": "application/json",
@@ -163,7 +167,7 @@ class DocumentsApi:
         body: dict[str, Any] = resp.body
         return SearchDocumentsResponse(
             total_count=body["totalCount"],
-            results=body.get("results", []),
+            results=body.get("result", []),
         )
 
     def get_document_content(self, doc_id: str) -> dict[str, Any]:
@@ -298,10 +302,10 @@ class AsyncDocumentsApi:
     # Public methods
     # ------------------------------------------------------------------
 
-    async def get_receipt_document(self, result_doc_id: str) -> dict[str, Any]:
-        """Retrieve a receipt document by its result doc ID.
+    async def get_receipt_document(self, result_doc_id: str, doc_id: str) -> dict[str, Any]:
+        """Retrieve the document associated with a receipt (§4.4.20).
 
-        GET /api/v3/receipts/document?omsId={omsId}&resultDocId={resultDocId}
+        GET /api/v3/receipts/document?omsId={omsId}&resultDocId={resultDocId}&docId={docId}
         """
         from suz_sdk.transport.async_httpx_transport import AsyncHttpxTransport
 
@@ -312,6 +316,7 @@ class AsyncDocumentsApi:
             params={
                 "omsId": self._oms_id,
                 "resultDocId": result_doc_id,
+                "docId": doc_id,
             },
             headers={
                 "Accept": "application/json",
@@ -357,7 +362,7 @@ class AsyncDocumentsApi:
         body: dict[str, Any] = resp.body
         return SearchDocumentsResponse(
             total_count=body["totalCount"],
-            results=body.get("results", []),
+            results=body.get("result", []),
         )
 
     async def get_document_content(self, doc_id: str) -> dict[str, Any]:

@@ -11,6 +11,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [2.0.0] — 2026-03-19
+
+### Breaking Changes
+
+- **`send_aggregation()`** — полностью переработана сигнатура по §4.4.10 (Table 119–120).
+  Старые параметры `sntins` и `aggregation_type` удалены; добавлены обязательные
+  `participant_id: str` (ИНН) и `aggregation_units: list[AggregationUnit]`.
+  Новый датакласс `AggregationUnit` содержит поля `sntins`, `unit_serial_number`,
+  `aggregated_items_count`, `aggregation_unit_capacity`; поле `aggregationType`
+  в теле запроса теперь всегда равно `"AGGREGATION"`.
+- **`send_dropout()`** — параметр `dropout_reason` стал обязательным (§4.4.9, «Да»).
+- **`send_surplus()`** — тело запроса переработано согласно `SurplusReport` §4.4.12
+  (Table 175): добавлены `document_date`, `participant_inn`, `primary_document_*`
+  и `codes`; `productGroup` перенесён в query-параметр.
+- **`get_quality()`** — параметр `order_id` стал необязательным; модель ответа
+  переименована `QualityResponse` → `QualityListResponse`; поле `results` теперь
+  `list[str]` (UUID отчётов), а не список объектов.
+- **`get_quality_cis_list()`** — параметры `order_id`/`gtin` заменены на обязательный
+  `report_id: str` (UUID из `get_quality()`); модель ответа полностью изменена.
+- **`get_mod()`** — добавлен обязательный параметр `product_group: str` (§4.4.17);
+  модель ответа переименована `ModResponse` → `ModListResponse`.
+- **`get_receipt_document()`** — добавлен обязательный параметр `doc_id: str` (§4.4.20).
+- **`search_orders()`** — дефолт `page` изменён с `0` на `1` (1-based, §4.4.29).
+
+### Fixed
+
+- **`search_documents()`** — ключ ответа исправлен с `"results"` на `"result"` (§4.4.21).
+- **`BufferInfo.total_codes`** — тип изменён с `int` на `str | int` согласно спецификации
+  (§4.4.2.2, Table 257, тип «Строка»).
+
+### Added
+
+- Датакласс `AggregationUnit` (публичный, экспортируется из `suz_sdk`).
+- GitHub Actions CI (`.github/workflows/ci.yml`) — запуск ruff, mypy, pytest на
+  Python 3.11/3.12/3.13 при каждом push/PR в `main`.
+
+---
+
 ## [0.9.0] — 2026-03-07
 
 ### Changed

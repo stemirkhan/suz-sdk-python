@@ -46,6 +46,25 @@ class SendDropoutResponse:
 
 
 @dataclass
+class AggregationUnit:
+    """One aggregation unit in an aggregation report (§4.4.10, Table 120).
+
+    Attributes:
+        sntins:                   Identification codes being aggregated (KM codes
+                                  or transport package IDs).
+        unit_serial_number:       Identification code of the aggregation unit
+                                  (without GS1 AI brackets), 18–74 chars.
+        aggregated_items_count:   Actual number of items placed in the unit.
+        aggregation_unit_capacity: Nominal capacity of the packaging.
+    """
+
+    sntins: list[str]
+    unit_serial_number: str
+    aggregated_items_count: int
+    aggregation_unit_capacity: int
+
+
+@dataclass
 class SendAggregationResponse:
     """Response from POST /api/v3/aggregation."""
 
@@ -55,7 +74,7 @@ class SendAggregationResponse:
 
 @dataclass
 class SendSurplusResponse:
-    """Response from POST /api/v3/surplus."""
+    """Response from POST /api/v3/surplus (§4.4.12.2)."""
 
     oms_id: str
     report_id: str
@@ -205,7 +224,7 @@ class ReportsApi:
         self,
         product_group: str,
         sntins: list[str],
-        dropout_reason: str | None = None,
+        dropout_reason: str,
         attributes: dict[str, Any] | None = None,
     ) -> SendDropoutResponse:
         """Send a KM dropout (списание) report.
@@ -219,7 +238,7 @@ class ReportsApi:
         Args:
             product_group:  Product group code (e.g. "milk", "shoes").
             sntins:         List of full KM codes including verification code.
-            dropout_reason: Optional. Reason for dropout.
+            dropout_reason: Required. Reason for dropout (§4.4.9, Table 111).
             attributes:     Optional product-group-specific attributes dict.
 
         Returns:
@@ -228,9 +247,8 @@ class ReportsApi:
         body_dict: dict[str, Any] = {
             "productGroup": product_group,
             "sntins": sntins,
+            "dropoutReason": dropout_reason,
         }
-        if dropout_reason is not None:
-            body_dict["dropoutReason"] = dropout_reason
         if attributes is not None:
             body_dict["attributes"] = attributes
 
@@ -261,8 +279,8 @@ class ReportsApi:
     def send_aggregation(
         self,
         product_group: str,
-        sntins: list[str],
-        aggregation_type: str | None = None,
+        participant_id: str,
+        aggregation_units: list[AggregationUnit],
         attributes: dict[str, Any] | None = None,
     ) -> SendAggregationResponse:
         """Send a KM aggregation (агрегация) report.
@@ -274,20 +292,32 @@ class ReportsApi:
         the exact bytes on the wire.
 
         Args:
-            product_group:    Product group code (e.g. "milk", "shoes").
-            sntins:           List of full KM codes including verification code.
-            aggregation_type: Optional. Aggregation type code.
-            attributes:       Optional product-group-specific attributes dict.
+            product_group:      Product group code (e.g. "milk", "shoes").
+            participant_id:     Taxpayer INN of the participant.
+            aggregation_units:  List of AggregationUnit objects.  Each unit
+                                contains the sntins being aggregated, the
+                                unit's serial number, and capacity info.
+            attributes:         Optional TG-specific attributes dict (required
+                                for tobacco, OTP, NCP; not used for milk,
+                                water, beer, medical, etc.).
 
         Returns:
             SendAggregationResponse with oms_id and report_id.
         """
         body_dict: dict[str, Any] = {
             "productGroup": product_group,
-            "sntins": sntins,
+            "participantId": participant_id,
+            "aggregationUnits": [
+                {
+                    "aggregatedItemsCount": u.aggregated_items_count,
+                    "aggregationType": "AGGREGATION",
+                    "aggregationUnitCapacity": u.aggregation_unit_capacity,
+                    "sntins": u.sntins,
+                    "unitSerialNumber": u.unit_serial_number,
+                }
+                for u in aggregation_units
+            ],
         }
-        if aggregation_type is not None:
-            body_dict["aggregationType"] = aggregation_type
         if attributes is not None:
             body_dict["attributes"] = attributes
 
@@ -318,31 +348,56 @@ class ReportsApi:
     def send_surplus(
         self,
         product_group: str,
-        sntins: list[str],
-        attributes: dict[str, Any] | None = None,
+        document_date: str,
+        participant_inn: str,
+        primary_document_custom_name: str,
+        primary_document_date: str,
+        primary_document_number: str,
+        codes: list[str],
+        document_type: str = "SURPLUS_POSTING",
+        document_version: str = "1.0",
+        participant_kpp: str | None = None,
+        participant_fias: str | None = None,
     ) -> SendSurplusResponse:
-        """Send a KM surplus (излишки) report.
+        """Send a «Принятие к учёту КИ» (surplus posting) notification.
 
-        POST /api/v3/surplus?omsId={omsId}
+        POST /api/v3/surplus?omsId={omsId}&productGroup={productGroup}
 
-        The body is JSON-serialised, signed (X-Signature, detached CMS Base64)
-        when a signer is provided, then sent verbatim so the signature covers
-        the exact bytes on the wire.
+        Sends a ``SurplusReport`` object (§4.4.12, Table 175).  The body is
+        JSON-serialised, optionally signed (X-Signature), and sent verbatim.
 
         Args:
-            product_group: Product group code (e.g. "milk", "shoes").
-            sntins:        List of full KM codes including verification code.
-            attributes:    Optional product-group-specific attributes dict.
+            product_group:                Product group code — sent as query
+                                          param, NOT in body (§4.4.12, Table 174).
+            document_date:                Document date, format
+                                          ``yyyy-MM-ddTHH:mm:ss.SSSZ``.
+            participant_inn:              INN of the participant.
+            primary_document_custom_name: Name of the primary document (1–255 chars).
+            primary_document_date:        Primary document date, format ``yyyy-MM-dd``.
+            primary_document_number:      Primary document number (1–255 chars).
+            codes:                        KM codes with verification code; max 30 000.
+            document_type:                Document type; must be ``SURPLUS_POSTING``.
+            document_version:             Document version; must be ``1.0``.
+            participant_kpp:              KPP (required for legal entities).
+            participant_fias:             FIAS GUID (required for individuals).
 
         Returns:
             SendSurplusResponse with oms_id and report_id.
         """
         body_dict: dict[str, Any] = {
-            "productGroup": product_group,
-            "sntins": sntins,
+            "documentType": document_type,
+            "documentVersion": document_version,
+            "documentDate": document_date,
+            "participantInn": participant_inn,
+            "primaryDocumentCustomName": primary_document_custom_name,
+            "primaryDocumentDate": primary_document_date,
+            "primaryDocumentNumber": primary_document_number,
+            "codes": codes,
         }
-        if attributes is not None:
-            body_dict["attributes"] = attributes
+        if participant_kpp is not None:
+            body_dict["participantKpp"] = participant_kpp
+        if participant_fias is not None:
+            body_dict["participantFias"] = participant_fias
 
         raw_body = json.dumps(body_dict, ensure_ascii=False).encode()
 
@@ -357,7 +412,7 @@ class ReportsApi:
         req = Request(
             method="POST",
             path="/api/v3/surplus",
-            params={"omsId": self._oms_id},
+            params={"omsId": self._oms_id, "productGroup": product_group},
             headers=headers,
             raw_body=raw_body,
         )
